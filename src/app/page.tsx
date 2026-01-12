@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { getSupabase, publicUrl } from "../lib/supabaseClient";
+import { supabase, publicUrl, BUCKET } from "../lib/supabaseClient";
 
 
 type PhotoRow = {
