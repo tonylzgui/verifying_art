@@ -31,8 +31,8 @@ export default function Page() {
 
   // ---- auth wiring ----
   useEffect(() => {
-    getSupabase().auth.getSession().then(({ data }) => setSession(data.session ?? null));
-    const { data: sub } = getSupabase().auth.onAuthStateChange((_event, s) => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
     });
     return () => sub.subscription.unsubscribe();
@@ -74,7 +74,7 @@ export default function Page() {
     setErr(null);
     setLoading(true);
     try {
-      const { error } = await getSupabase().auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) setErr(error.message);
       else setErr("Sign up successful. If email confirmation is enabled, confirm then sign in.");
     } finally {
@@ -86,7 +86,7 @@ export default function Page() {
     setErr(null);
     setLoading(true);
     try {
-      const { error } = await getSupabase().auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setErr(error.message);
     } finally {
       setLoading(false);
@@ -95,18 +95,18 @@ export default function Page() {
 
   async function signOut() {
     setErr(null);
-    await getSupabase().auth.signOut();
+    await supabase.auth.signOut();
   }
 
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
-    await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
+    await supabase.rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
     setErr(null);
     setLoading(true);
     try {
       // Take the earliest unserved queued photo for this user
-      const { data: q, error: qErr } = await getSupabase()
+      const { data: q, error: qErr } = await supabase
         .from("photo_queue")
         .select("photo_id, order_index")
         .eq("user_id", userId)
@@ -123,7 +123,7 @@ export default function Page() {
 
       const photoId = q[0].photo_id as string;
 
-      const { data: p, error: pErr } = await getSupabase()
+      const { data: p, error: pErr } = await supabase
         .from("photos")
         .select("id, storage_path")
         .eq("id", photoId)
@@ -157,14 +157,14 @@ export default function Page() {
         relevance_rationale: relevanceNeedsWhy ? relevanceWhy.trim() : null,
       };
 
-      const { error: upErr } = await getSupabase()
+      const { error: upErr } = await supabase
         .from("user_photo_scores")
         .upsert(payload, { onConflict: "user_id,photo_id" });
 
       if (upErr) throw upErr;
 
       // Mark this photo as served in queue
-      const { error: servedErr } = await getSupabase()
+      const { error: servedErr } = await supabase
         .from("photo_queue")
         .update({ served: true, served_at: new Date().toISOString() })
         .eq("user_id", userId)
