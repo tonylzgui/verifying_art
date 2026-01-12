@@ -2,7 +2,8 @@
 export const dynamic = "force-dynamic";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { getgetSupabase(), publicUrl } from "../lib/getSupabase()Client";
+import { getSupabase, publicUrl } from "../lib/supabaseClient";
+
 
 type PhotoRow = {
   id: string;

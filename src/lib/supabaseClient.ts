@@ -8,11 +8,8 @@ export function getSupabase(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // During Vercel build/prerender, envs may be unavailable.
-  // Do NOT crash the build; only enforce on the browser.
   if (!url || !key || !/^https?:\/\//.test(url)) {
     if (typeof window === "undefined") {
-      // dummy client for build-time evaluation (won't be used in browser UI)
       _client = createClient("https://example.com", "public-anon-key-placeholder");
       return _client;
     }
