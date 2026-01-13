@@ -124,8 +124,7 @@ export default function Page() {
     setLoading(true);
     try {
       const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
-        // IMPORTANT: change if your prod URL differs
-        redirectTo: "https://verifying-art.vercel.app/reset",
+        redirectTo: `${window.location.origin}/reset`,
       });
       if (error) setErr(error.message);
       else setErr("Password reset email sent. Check your inbox.");
