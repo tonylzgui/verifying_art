@@ -1,28 +1,31 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-export const BUCKET =
-  process.env.NEXT_PUBLIC_SUPABASE_BUCKET || "art_photos";
+export const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+export const SUPABASE_ANON_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+export const BUCKET = (process.env.NEXT_PUBLIC_SUPABASE_BUCKET ?? "art_photos").trim();
 
 let _client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
   if (_client) return _client;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // IMPORTANT: don't crash the build; only crash when actually used
-  if (!url || !anon) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      "Missing or invalid NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY"
     );
   }
 
-  _client = createClient(url, anon);
+  _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   return _client;
 }
 
+/**
+ * Build-safe public URL generator (does NOT call supabase-js).
+ * This avoids build-time crashes if Next evaluates things during prerender.
+ */
 export function publicUrl(path: string): string {
-  const { data } = getSupabase().storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  if (!SUPABASE_URL) return "";
+  const cleanBase = SUPABASE_URL.replace(/\/+$/, "");
+  const cleanPath = path.replace(/^\/+/, "");
+  return `${cleanBase}/storage/v1/object/public/${BUCKET}/${cleanPath}`;
 }

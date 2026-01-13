@@ -2,8 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { getSupabase, publicUrl, BUCKET } from "../lib/supabaseClient";
-
+import { getSupabase, publicUrl } from "../lib/supabaseClient";
 
 type PhotoRow = {
   id: string;
@@ -29,26 +28,27 @@ export default function Page() {
   const [relevance, setRelevance] = useState<number>(5);
   const [relevanceWhy, setRelevanceWhy] = useState<string>("");
 
+  const userId = session?.user?.id as string | undefined;
+
   // ---- auth wiring ----
   useEffect(() => {
-    getSupabase().auth.getSession().then(({ data }) => setSession(data.session ?? null));
-    const { data: sub } = getSupabase().auth.onAuthStateChange((_event, s) => {
+    const sb = getSupabase();
+
+    sb.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+
+    const { data: sub } = sb.auth.onAuthStateChange((_event, s) => {
       setSession(s);
     });
+
     return () => sub.subscription.unsubscribe();
   }, []);
 
   // When we log in, load first photo
   useEffect(() => {
-    if (session?.user?.id) {
-      loadNextPhoto();
-    } else {
-      setCurrentPhoto(null);
-    }
+    if (userId) loadNextPhoto();
+    else setCurrentPhoto(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
-
-  const userId = session?.user?.id as string | undefined;
+  }, [userId]);
 
   // ---- helpers ----
   const wealthNeedsWhy = wealth !== 5;
@@ -76,7 +76,7 @@ export default function Page() {
     try {
       const { error } = await getSupabase().auth.signUp({ email, password });
       if (error) setErr(error.message);
-      else setErr("Sign up successful. If email confirmation is enabled, confirm then sign in.");
+      else setErr("Sign up successful. Confirm email (if enabled), then sign in.");
     } finally {
       setLoading(false);
     }
@@ -100,13 +100,19 @@ export default function Page() {
 
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
-    await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
+
     setErr(null);
     setLoading(true);
     try {
-      // Take the earliest unserved queued photo for this user
-      const { data: q, error: qErr } = await getSupabase()
+      const sb = getSupabase();
+
+      // make queue exists for this user (you can change 20 later)
+      const { error: rpcErr } = await sb.rpc("ensure_queue", { anchor_n: 20 });
+      if (rpcErr) throw rpcErr;
+
+      // earliest unserved queued photo for this user
+      const { data: q, error: qErr } = await sb
         .from("photo_queue")
         .select("photo_id, order_index")
         .eq("user_id", userId)
@@ -123,7 +129,7 @@ export default function Page() {
 
       const photoId = q[0].photo_id as string;
 
-      const { data: p, error: pErr } = await getSupabase()
+      const { data: p, error: pErr } = await sb
         .from("photos")
         .select("id, storage_path")
         .eq("id", photoId)
@@ -143,11 +149,13 @@ export default function Page() {
   // ---- save score + mark served + next ----
   async function saveAndNext() {
     if (!userId || !currentPhoto) return;
+
     setErr(null);
     setLoading(true);
 
     try {
-      // Upsert score (if they revisit, latest wins)
+      const sb = getSupabase();
+
       const payload = {
         user_id: userId,
         photo_id: currentPhoto.id,
@@ -157,14 +165,13 @@ export default function Page() {
         relevance_rationale: relevanceNeedsWhy ? relevanceWhy.trim() : null,
       };
 
-      const { error: upErr } = await getSupabase()
+      const { error: upErr } = await sb
         .from("user_photo_scores")
         .upsert(payload, { onConflict: "user_id,photo_id" });
 
       if (upErr) throw upErr;
 
-      // Mark this photo as served in queue
-      const { error: servedErr } = await getSupabase()
+      const { error: servedErr } = await sb
         .from("photo_queue")
         .update({ served: true, served_at: new Date().toISOString() })
         .eq("user_id", userId)
@@ -243,43 +250,17 @@ export default function Page() {
         <div style={{ marginTop: 24, fontSize: 18, opacity: 0.8 }}>No more photos available right now.</div>
       ) : (
         <div style={{ marginTop: 18 }}>
-          <div
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-              background: "white",
-            }}
-          >
+          <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, marginBottom: 16, background: "white" }}>
             <img
               src={publicUrl(currentPhoto.storage_path)}
-              alt={currentPhoto.storage_path}
+              alt="art"
               style={{ width: "100%", height: 520, objectFit: "contain" }}
             />
-            {/* <div style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>{currentPhoto.storage_path}</div> */}
           </div>
 
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
-            <div style={{ flex: 1 }}>
-              <Section
-                title="Level of wealth"
-                value={wealth}
-                onChange={setWealth}
-                rationale={wealthWhy}
-                setRationale={setWealthWhy}
-              />
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <Section
-                title="Relevant score"
-                value={relevance}
-                onChange={setRelevance}
-                rationale={relevanceWhy}
-                setRationale={setRelevanceWhy}
-              />
-            </div>
+            <Section title="Level of wealth" value={wealth} onChange={setWealth} rationale={wealthWhy} setRationale={setWealthWhy} />
+            <Section title="Relevant score" value={relevance} onChange={setRelevance} rationale={relevanceWhy} setRationale={setRelevanceWhy} />
           </div>
 
           <div style={{ height: 22 }} />
@@ -339,17 +320,18 @@ function Section({
           step={1}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{
-            width: "100%",
-            accentColor: sliderColor, // works in modern browsers
-          }}
+          style={{ width: "100%", accentColor: sliderColor }}
         />
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       </div>
 
       <div style={{ marginTop: 12 }}>
         <textarea
-          placeholder={needsWhy ? "Rationale (required because you chose a score other than 5)" : "Rationale (optional when score = 5)"}
+          placeholder={
+            needsWhy
+              ? "Rationale (required because you chose a score other than 5)"
+              : "Rationale (optional when score = 5)"
+          }
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={3}
