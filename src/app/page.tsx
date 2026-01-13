@@ -32,11 +32,11 @@ export default function Page() {
 
   // ---- auth wiring ----
   useEffect(() => {
-    const sb = getSupabase();
+    getSupabase()
+      .auth.getSession()
+      .then(({ data }) => setSession(data.session ?? null));
 
-    sb.auth.getSession().then(({ data }) => setSession(data.session ?? null));
-
-    const { data: sub } = sb.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = getSupabase().auth.onAuthStateChange((_event, s) => {
       setSession(s);
     });
 
@@ -45,10 +45,13 @@ export default function Page() {
 
   // When we log in, load first photo
   useEffect(() => {
-    if (userId) loadNextPhoto();
-    else setCurrentPhoto(null);
+    if (session?.user?.id) {
+      loadNextPhoto();
+    } else {
+      setCurrentPhoto(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [session?.user?.id]);
 
   // ---- helpers ----
   const wealthNeedsWhy = wealth !== 5;
@@ -74,9 +77,22 @@ export default function Page() {
     setErr(null);
     setLoading(true);
     try {
-      const { error } = await getSupabase().auth.signUp({ email, password });
-      if (error) setErr(error.message);
-      else setErr("Sign up successful. Confirm email (if enabled), then sign in.");
+      const { error } = await getSupabase().auth.signUp({
+        email: email.trim(),
+        password,
+      });
+
+      if (!error) {
+        setErr("Sign up successful. If email confirmation is enabled, confirm then sign in.");
+        return;
+      }
+
+      const msg = (error.message || "").toLowerCase();
+      if (msg.includes("already") && (msg.includes("registered") || msg.includes("exists"))) {
+        setErr("That email is already registered. Click “Forgot password?” if you can’t sign in.");
+      } else {
+        setErr(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -86,8 +102,33 @@ export default function Page() {
     setErr(null);
     setLoading(true);
     try {
-      const { error } = await getSupabase().auth.signInWithPassword({ email, password });
+      const { error } = await getSupabase().auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
       if (error) setErr(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function forgotPassword() {
+    setErr(null);
+
+    const em = email.trim();
+    if (!em) {
+      setErr("Enter your email first, then click “Forgot password?”.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
+        // IMPORTANT: change if your prod URL differs
+        redirectTo: "https://verifying-art.vercel.app/reset",
+      });
+      if (error) setErr(error.message);
+      else setErr("Password reset email sent. Check your inbox.");
     } finally {
       setLoading(false);
     }
@@ -100,19 +141,14 @@ export default function Page() {
 
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
+    // creates/ensures per-user queue (RPC should exist in your DB)
+    await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
 
     setErr(null);
     setLoading(true);
     try {
-      const sb = getSupabase();
-
-      // make queue exists for this user (you can change 20 later)
-      const { error: rpcErr } = await sb.rpc("ensure_queue", { anchor_n: 20 });
-      if (rpcErr) throw rpcErr;
-
-      // earliest unserved queued photo for this user
-      const { data: q, error: qErr } = await sb
+      const { data: q, error: qErr } = await getSupabase()
         .from("photo_queue")
         .select("photo_id, order_index")
         .eq("user_id", userId)
@@ -129,7 +165,7 @@ export default function Page() {
 
       const photoId = q[0].photo_id as string;
 
-      const { data: p, error: pErr } = await sb
+      const { data: p, error: pErr } = await getSupabase()
         .from("photos")
         .select("id, storage_path")
         .eq("id", photoId)
@@ -149,13 +185,10 @@ export default function Page() {
   // ---- save score + mark served + next ----
   async function saveAndNext() {
     if (!userId || !currentPhoto) return;
-
     setErr(null);
     setLoading(true);
 
     try {
-      const sb = getSupabase();
-
       const payload = {
         user_id: userId,
         photo_id: currentPhoto.id,
@@ -165,13 +198,13 @@ export default function Page() {
         relevance_rationale: relevanceNeedsWhy ? relevanceWhy.trim() : null,
       };
 
-      const { error: upErr } = await sb
+      const { error: upErr } = await getSupabase()
         .from("user_photo_scores")
         .upsert(payload, { onConflict: "user_id,photo_id" });
 
       if (upErr) throw upErr;
 
-      const { error: servedErr } = await sb
+      const { error: servedErr } = await getSupabase()
         .from("photo_queue")
         .update({ served: true, served_at: new Date().toISOString() })
         .eq("user_id", userId)
@@ -187,7 +220,7 @@ export default function Page() {
     }
   }
 
-  // ---- UI ----
+  // ---- UI (logged out) ----
   if (!session) {
     return (
       <main style={{ maxWidth: 520, margin: "40px auto", fontFamily: "system-ui" }}>
@@ -210,12 +243,15 @@ export default function Page() {
             autoComplete="current-password"
           />
 
-          <div style={{ display: "flex", gap: 16 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button onClick={signIn} disabled={loading} style={{ padding: "10px 14px" }}>
               Sign in
             </button>
             <button onClick={signUp} disabled={loading} style={{ padding: "10px 14px" }}>
               Sign up
+            </button>
+            <button onClick={forgotPassword} disabled={loading} style={{ padding: "10px 14px" }}>
+              Forgot password?
             </button>
           </div>
 
@@ -229,6 +265,7 @@ export default function Page() {
     );
   }
 
+  // ---- UI (logged in) ----
   return (
     <main style={{ maxWidth: 900, margin: "40px auto", fontFamily: "system-ui" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -239,7 +276,15 @@ export default function Page() {
       </div>
 
       {err && (
-        <div style={{ border: "1px solid #f2a2a2", padding: 12, borderRadius: 8, color: "#a11", marginBottom: 16 }}>
+        <div
+          style={{
+            border: "1px solid #f2a2a2",
+            padding: 12,
+            borderRadius: 8,
+            color: "#a11",
+            marginBottom: 16,
+          }}
+        >
           {err}
         </div>
       )}
@@ -250,17 +295,38 @@ export default function Page() {
         <div style={{ marginTop: 24, fontSize: 18, opacity: 0.8 }}>No more photos available right now.</div>
       ) : (
         <div style={{ marginTop: 18 }}>
-          <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, marginBottom: 16, background: "white" }}>
+          <div
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 16,
+              background: "white",
+            }}
+          >
             <img
               src={publicUrl(currentPhoto.storage_path)}
-              alt="art"
+              alt=""
               style={{ width: "100%", height: 520, objectFit: "contain" }}
             />
           </div>
 
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
-            <Section title="Level of wealth" value={wealth} onChange={setWealth} rationale={wealthWhy} setRationale={setWealthWhy} />
-            <Section title="Relevant score" value={relevance} onChange={setRelevance} rationale={relevanceWhy} setRationale={setRelevanceWhy} />
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <Section
+              title="Level of wealth"
+              value={wealth}
+              onChange={setWealth}
+              rationale={wealthWhy}
+              setRationale={setWealthWhy}
+            />
+
+            <Section
+              title="Relevant score"
+              value={relevance}
+              onChange={setRelevance}
+              rationale={relevanceWhy}
+              setRationale={setRelevanceWhy}
+            />
           </div>
 
           <div style={{ height: 22 }} />
@@ -320,18 +386,17 @@ function Section({
           step={1}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{ width: "100%", accentColor: sliderColor }}
+          style={{
+            width: "100%",
+            accentColor: sliderColor,
+          }}
         />
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       </div>
 
       <div style={{ marginTop: 12 }}>
         <textarea
-          placeholder={
-            needsWhy
-              ? "Rationale (required because you chose a score other than 5)"
-              : "Rationale (optional when score = 5)"
-          }
+          placeholder={needsWhy ? "Rationale (required because you chose a score other than 5)" : "Rationale (optional when score = 5)"}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={3}
