@@ -300,7 +300,7 @@ export default function Page() {
             onClick={signOut}
             style={{
               position: "absolute",
-              right: 0,
+              right: -6,
               top: 0,
               padding: "8px 12px",
               borderRadius: 10,
@@ -344,7 +344,7 @@ export default function Page() {
                 neutralValue={0}
                 labels={{
                   left: "0 — Not representative",
-                  middle: "5 — Neither representative",
+                  middle: "5 — Neither representative nor unrepresentative",
                   right: "10 — Very representative",
                 }}
               />
