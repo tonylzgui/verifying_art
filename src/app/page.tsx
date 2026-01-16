@@ -336,9 +336,11 @@ export default function Page() {
     return (
       <main style={styles.page}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 18 }}>Set a new password</h1>
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 18, textAlign: "center" }}>
+            Set a new password
+          </h1>
 
-          <div style={{ ...styles.card, maxWidth: 520 }}>
+          <div style={{ ...styles.card, maxWidth: 520, margin: "0 auto" }}>
             <div style={{ display: "grid", gap: 12 }}>
               <input
                 placeholder="new password"
@@ -357,7 +359,7 @@ export default function Page() {
                 autoComplete="new-password"
               />
 
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                 <button
                   onClick={setPasswordFromRecovery}
                   disabled={loading}
@@ -392,18 +394,14 @@ export default function Page() {
   // ---- UI (logged out) ----
   if (!session) {
     return (
-      <main
-        style={{
-          ...styles.page,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 18px 0" }}>{TITLE}</h1>
+      <main style={styles.page}>
+        {/* Make title width match the login card */}
+        <div style={{ maxWidth: 520, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 18px 0", textAlign: "center" }}>
+            {TITLE}
+          </h1>
 
-          <div style={{ ...styles.card, maxWidth: 520, margin: "0 auto" }}>
+          <div style={styles.card}>
             <div style={{ display: "grid", gap: 12 }}>
               <input
                 placeholder="email"
@@ -421,7 +419,7 @@ export default function Page() {
                 autoComplete="current-password"
               />
 
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                 <button
                   onClick={signIn}
                   disabled={loading}
@@ -457,25 +455,10 @@ export default function Page() {
   return (
     <main style={styles.page}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto 1fr",
-            alignItems: "baseline",
-            gap: 12,
-            marginBottom: 10,
-          }}
-        >
-          <div /> {/* left spacer */}
-
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: 0, textAlign: "center", maxWidth: 780 }}>
-            {TITLE}
-          </h1>
-
-          <button onClick={signOut} style={{ ...styles.buttonSecondary, justifySelf: "end" }}>
-            Sign out
-          </button>
-        </div>
+        {/* Center title; sign out moved to bottom-right */}
+        <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 10px 0", textAlign: "center" }}>
+          {TITLE}
+        </h1>
 
         {err && <div style={{ ...styles.error, marginBottom: 16 }}>{err}</div>}
         {loading && <div style={{ marginBottom: 12, opacity: 0.75, color: "#111" }}>Loading…</div>}
@@ -523,23 +506,40 @@ export default function Page() {
               />
             </div>
 
-            <div style={{ height: 22 }} />
-
-            <button
-              onClick={saveAndNext}
-              disabled={!canSave || loading}
+            {/* Bottom bar: Save left, Sign out right */}
+            <div
               style={{
-                padding: "12px 18px",
-                fontSize: 16,
-                borderRadius: 10,
-                border: "1px solid #111",
-                background: canSave ? "#111" : "#cfcfcf",
-                color: "white",
-                cursor: canSave ? "pointer" : "not-allowed",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                marginTop: 22,
               }}
             >
-              Save & Next
-            </button>
+              <button
+                onClick={saveAndNext}
+                disabled={!canSave || loading}
+                style={{
+                  padding: "12px 18px",
+                  fontSize: 16,
+                  borderRadius: 10,
+                  border: "1px solid #111",
+                  background: canSave ? "#111" : "#cfcfcf",
+                  color: "white",
+                  cursor: canSave ? "pointer" : "not-allowed",
+                }}
+              >
+                Save & Next
+              </button>
+
+              <button
+                onClick={signOut}
+                disabled={loading}
+                style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -581,7 +581,9 @@ function Section({
           onChange={(e) => onChange(Number(e.target.value))}
           style={{ width: "100%", accentColor: sliderColor }}
         />
-        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>{value}</div>
+        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
+          {value}
+        </div>
       </div>
 
       {/* Labels for 0 / 5 / 10 */}
