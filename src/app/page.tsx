@@ -16,6 +16,11 @@ export default function Page() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // reset password flow (working recovery-link flow)
+  const [resetMode, setResetMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
+
   // app state
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,6 +59,7 @@ export default function Page() {
       padding: 12,
       borderRadius: 8,
       color: "#a11",
+      whiteSpace: "pre-wrap" as const,
     },
     input: {
       padding: 12,
@@ -99,15 +105,30 @@ export default function Page() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // When we log in, load first photo
+  // Detect Supabase recovery links (e.g. /#access_token=...&type=recovery)
+  // When present, show reset UI instead of the app (even if Supabase "logs them in").
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash || "";
+    const qs = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+    const type = qs.get("type");
+    if (type === "recovery") {
+      setResetMode(true);
+      setErr(null);
+    }
+  }, []);
+
+  // When we log in, load first photo (but NOT during reset)
+  useEffect(() => {
+    if (resetMode) return;
+
     if (session?.user?.id) {
       loadNextPhoto();
     } else {
       setCurrentPhoto(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
+  }, [session?.user?.id, resetMode]);
 
   // ---- helpers ----
   const wealthNeedsWhy = wealth !== 5;
@@ -179,11 +200,47 @@ export default function Page() {
 
     setLoading(true);
     try {
+      // Send them back to this page; we detect the recovery hash and show reset UI.
       const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
-        redirectTo: `${window.location.origin}/reset`,
+        redirectTo: window.location.origin,
       });
       if (error) setErr(error.message);
       else setErr("Password reset email sent. Check your inbox.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setPasswordFromRecovery() {
+    setErr(null);
+
+    if (newPassword.length < 6) {
+      setErr("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== newPassword2) {
+      setErr("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await getSupabase().auth.updateUser({ password: newPassword });
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+
+      // IMPORTANT: sign out so the recovery link doesn't "log them into the app"
+      await getSupabase().auth.signOut();
+      setSession(null);
+
+      // clear hash + exit reset mode
+      window.history.replaceState({}, "", window.location.pathname);
+      setResetMode(false);
+      setNewPassword("");
+      setNewPassword2("");
+      setErr("Password updated. Please sign in with your new password.");
     } finally {
       setLoading(false);
     }
@@ -274,6 +331,64 @@ export default function Page() {
     }
   }
 
+  // ---- UI (reset mode: show even if session exists) ----
+  if (resetMode) {
+    return (
+      <main style={styles.page}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 18 }}>Set a new password</h1>
+
+          <div style={{ ...styles.card, maxWidth: 520 }}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <input
+                placeholder="new password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                style={styles.input}
+                autoComplete="new-password"
+              />
+              <input
+                placeholder="confirm new password"
+                type="password"
+                value={newPassword2}
+                onChange={(e) => setNewPassword2(e.target.value)}
+                style={styles.input}
+                autoComplete="new-password"
+              />
+
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={setPasswordFromRecovery}
+                  disabled={loading}
+                  style={{ ...styles.button, ...(loading ? styles.disabled : {}) }}
+                >
+                  Update password
+                </button>
+
+                <button
+                  onClick={async () => {
+                    setResetMode(false);
+                    setNewPassword("");
+                    setNewPassword2("");
+                    await getSupabase().auth.signOut();
+                    window.history.replaceState({}, "", window.location.pathname);
+                  }}
+                  disabled={loading}
+                  style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
+                >
+                  Back
+                </button>
+              </div>
+
+              {err && <div style={styles.error}>{err}</div>}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // ---- UI (logged out) ----
   if (!session) {
     return (
@@ -300,7 +415,11 @@ export default function Page() {
               />
 
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <button onClick={signIn} disabled={loading} style={{ ...styles.button, ...(loading ? styles.disabled : {}) }}>
+                <button
+                  onClick={signIn}
+                  disabled={loading}
+                  style={{ ...styles.button, ...(loading ? styles.disabled : {}) }}
+                >
                   Sign in
                 </button>
                 <button
@@ -361,11 +480,10 @@ export default function Page() {
                 onChange={setRelevance}
                 rationale={relevanceWhy}
                 setRationale={setRelevanceWhy}
-                needsWhyRule="not-default"
                 defaultValue={0}
                 labels={{
                   left: "0 — Not representative",
-                  mid: "5 — Neither representative",
+                  mid: "5 — Neither representative nor unrepresentative",
                   right: "10 — Very representative",
                 }}
               />
@@ -376,7 +494,6 @@ export default function Page() {
                 onChange={setWealth}
                 rationale={wealthWhy}
                 setRationale={setWealthWhy}
-                needsWhyRule="not-default"
                 defaultValue={5}
                 labels={{
                   left: "0 — Extremely poor",
@@ -403,13 +520,6 @@ export default function Page() {
             >
               Save & Next
             </button>
-
-            {!canSave && (
-              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.75 }}>
-                Tip: for <b>Relevant score</b>, rationale is required if you move off <b>0</b>. For <b>Level of wealth</b>,
-                rationale is required if you move off <b>5</b>.
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -431,8 +541,7 @@ function Section({
   onChange: (v: number) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  needsWhyRule: "not-default";
-  defaultValue: number;
+  defaultValue: number; // rationale required when value !== defaultValue
   labels: { left: string; mid: string; right: string };
 }) {
   const needsWhy = value !== defaultValue;
