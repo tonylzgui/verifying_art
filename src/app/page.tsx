@@ -27,72 +27,67 @@ export default function Page() {
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
-  // scoring state
-  const [relevance, setRelevance] = useState<number>(0);
-  const [relevanceWhy, setRelevanceWhy] = useState<string>("");
-
   const [wealth, setWealth] = useState<number>(5);
   const [wealthWhy, setWealthWhy] = useState<string>("");
+
+  const [relevance, setRelevance] = useState<number>(0);
+  const [relevanceWhy, setRelevanceWhy] = useState<string>("");
 
   const userId = session?.user?.id as string | undefined;
 
   // ---- auth wiring ----
   useEffect(() => {
-    // detect password recovery links so we show reset UI on this same page (no /reset route needed)
-    if (typeof window !== "undefined") {
-      const u = new URL(window.location.href);
-      const isRecovery =
-        u.searchParams.get("type") === "recovery" ||
-        u.searchParams.get("reset") === "1" ||
-        window.location.hash.includes("access_token") ||
-        window.location.hash.includes("recovery");
-
-      if (isRecovery) setResetMode(true);
-    }
-
     getSupabase()
       .auth.getSession()
       .then(({ data }) => setSession(data.session ?? null));
 
-    const { data: sub } = getSupabase().auth.onAuthStateChange((event, s) => {
+    const { data: sub } = getSupabase().auth.onAuthStateChange((_event, s) => {
       setSession(s);
-
-      // Supabase will fire this when the user lands via recovery link
-      if (event === "PASSWORD_RECOVERY") {
-        setResetMode(true);
-      }
     });
 
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // When we log in, load first photo
+  // detect supabase recovery links (e.g. /#access_token=...&type=recovery)
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash || "";
+    const qs = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+    const type = qs.get("type");
+    if (type === "recovery") {
+      setResetMode(true);
+      setErr(null);
+    }
+  }, []);
+
+  // When we log in, load first photo (but NOT during reset)
+  useEffect(() => {
+    if (resetMode) return;
     if (session?.user?.id) {
       loadNextPhoto();
     } else {
       setCurrentPhoto(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
+  }, [session?.user?.id, resetMode]);
 
   // ---- helpers ----
-  const relevanceNeedsWhy = relevance !== 0; // required if moved off 0
-  const wealthNeedsWhy = wealth !== 5; // required if moved off 5
+  const wealthNeedsWhy = wealth !== 5;
+  const relevanceNeedsWhy = relevance !== 0;
 
   const canSave = useMemo(() => {
     if (!userId) return false;
     if (!currentPhoto) return false;
-    if (relevanceNeedsWhy && relevanceWhy.trim().length === 0) return false;
     if (wealthNeedsWhy && wealthWhy.trim().length === 0) return false;
+    if (relevanceNeedsWhy && relevanceWhy.trim().length === 0) return false;
     return true;
-  }, [userId, currentPhoto, relevanceNeedsWhy, relevanceWhy, wealthNeedsWhy, wealthWhy]);
+  }, [userId, currentPhoto, wealthNeedsWhy, wealthWhy, relevanceNeedsWhy, relevanceWhy]);
 
   function resetInputs() {
-    setRelevance(0);
-    setRelevanceWhy("");
     setWealth(5);
     setWealthWhy("");
+    setRelevance(0);
+    setRelevanceWhy("");
   }
 
   // ---- auth actions ----
@@ -106,10 +101,7 @@ export default function Page() {
       });
 
       if (!error) {
-        // Supabase may intentionally not reveal whether email exists.
-        setErr(
-          "If this is a new account, check your email to confirm. If you already have an account, try “Sign in” or “Forgot password?”."
-        );
+        setErr("Sign up successful. If email confirmation is enabled, confirm then sign in.");
         return;
       }
 
@@ -149,9 +141,9 @@ export default function Page() {
 
     setLoading(true);
     try {
-      // Redirect back to / so we don't need a /reset route
+      // send them back to your app root; we detect the recovery hash and show reset UI
       const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
-        redirectTo: `${window.location.origin}/?reset=1`,
+        redirectTo: window.location.origin,
       });
       if (error) setErr(error.message);
       else setErr("Password reset email sent. Check your inbox.");
@@ -163,8 +155,8 @@ export default function Page() {
   async function setPasswordFromRecovery() {
     setErr(null);
 
-    if (!newPassword || newPassword.length < 8) {
-      setErr("New password must be at least 8 characters.");
+    if (newPassword.length < 6) {
+      setErr("Password must be at least 6 characters.");
       return;
     }
     if (newPassword !== newPassword2) {
@@ -180,15 +172,16 @@ export default function Page() {
         return;
       }
 
-      setErr("Password updated. You can now sign in.");
+      // IMPORTANT: sign out so the recovery link doesn't "log them into the app"
+      await getSupabase().auth.signOut();
+      setSession(null);
+
+      // clear hash + exit reset mode
+      window.history.replaceState({}, "", window.location.pathname);
       setResetMode(false);
       setNewPassword("");
       setNewPassword2("");
-
-      // Clean URL so refresh doesn't keep showing reset mode
-      if (typeof window !== "undefined") {
-        window.history.replaceState({}, "", window.location.pathname);
-      }
+      setErr("Password updated. Please sign in with your new password.");
     } finally {
       setLoading(false);
     }
@@ -280,229 +273,124 @@ export default function Page() {
     }
   }
 
-  // ---- styles (dark mode safe) ----
+  // ---------- styles ----------
   const styles = (
     <style>{`
-      :root{
-        --bg: #f6f7f8;
-        --text: #0b0c0f;
-        --muted: rgba(0,0,0,.65);
-        --card: #ffffff;
-        --border: #d7dbe0;
-        --input: #ffffff;
-        --inputText: #0b0c0f;
-        --placeholder: rgba(0,0,0,.45);
-        --btn: #111111;
-        --btnText: #ffffff;
+      :root {
+        color-scheme: light dark;
       }
-      @media (prefers-color-scheme: dark){
-        :root{
-          --bg: #0b0c0f;
-          --text: #f5f7fb;
-          --muted: rgba(245,247,251,.70);
-          --card: #111827;
-          --border: #334155;
-          --input: #0f172a;
-          --inputText: #f5f7fb;
-          --placeholder: rgba(245,247,251,.55);
-          --btn: #f5f7fb;
-          --btnText: #0b0c0f;
-        }
-      }
-      html, body { height: 100%; }
       body {
-        background: var(--bg);
-        color: var(--text);
-        margin: 0;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        background: #f6f7f9;
+        color: #111;
       }
-      input, textarea, button { font-family: inherit; }
-      input::placeholder, textarea::placeholder { color: var(--placeholder); }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0b0f17; color: #f3f4f6; }
+      }
     `}</style>
   );
+
+  // ---- UI (reset mode: show even if session exists) ----
+  if (resetMode) {
+    return (
+      <>
+        {styles}
+        <main style={{ maxWidth: 520, margin: "44px auto", padding: "0 16px", fontFamily: "system-ui" }}>
+          <h1 style={{ fontSize: 34, margin: "0 0 18px 0", lineHeight: 1.15 }}>Set a new password</h1>
+
+          <div style={{ border: "1px solid rgba(0,0,0,.12)", borderRadius: 14, padding: 16, background: "white" }}>
+            <div style={{ display: "grid", gap: 10 }}>
+              <input
+                placeholder="new password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ddd" }}
+                autoComplete="new-password"
+              />
+              <input
+                placeholder="confirm new password"
+                type="password"
+                value={newPassword2}
+                onChange={(e) => setNewPassword2(e.target.value)}
+                style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ddd" }}
+                autoComplete="new-password"
+              />
+
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={setPasswordFromRecovery}
+                  disabled={loading}
+                  style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111", background: "#111", color: "white" }}
+                >
+                  Update password
+                </button>
+
+                <button
+                  onClick={async () => {
+                    setResetMode(false);
+                    setNewPassword("");
+                    setNewPassword2("");
+                    await getSupabase().auth.signOut();
+                    window.history.replaceState({}, "", window.location.pathname);
+                  }}
+                  disabled={loading}
+                  style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd", background: "transparent" }}
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+
+            {err && (
+              <div style={{ marginTop: 14, border: "1px solid rgba(220,38,38,.55)", padding: 12, borderRadius: 10, color: "rgb(220,38,38)", background: "rgba(220,38,38,.08)", whiteSpace: "pre-wrap" }}>
+                {err}
+              </div>
+            )}
+          </div>
+        </main>
+      </>
+    );
+  }
 
   // ---- UI (logged out) ----
   if (!session) {
     return (
       <>
         {styles}
-        <main style={{ maxWidth: 520, margin: "44px auto", padding: "0 16px" }}>
-          <h1 style={{ fontSize: 34, margin: "0 0 18px 0", lineHeight: 1.15 }}>
-            Does this artwork represent the living conditions of its time?
-          </h1>
+        <main style={{ maxWidth: 520, margin: "44px auto", padding: "0 16px", fontFamily: "system-ui" }}>
+          <h1 style={{ fontSize: 40, marginBottom: 24 }}>Sign in</h1>
 
-          <div
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 14,
-              padding: 16,
-              background: "var(--card)",
-            }}
-          >
-            {resetMode ? (
-              <>
-                <div style={{ fontSize: 16, fontWeight: 650, marginBottom: 10 }}>Set a new password</div>
+          <div style={{ display: "grid", gap: 12 }}>
+            <input
+              placeholder="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ddd" }}
+              autoComplete="email"
+            />
+            <input
+              placeholder="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ddd" }}
+              autoComplete="current-password"
+            />
 
-                <div style={{ display: "grid", gap: 10 }}>
-                  <input
-                    placeholder="new password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    style={{
-                      padding: 12,
-                      fontSize: 16,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "var(--input)",
-                      color: "var(--inputText)",
-                    }}
-                    autoComplete="new-password"
-                  />
-                  <input
-                    placeholder="confirm new password"
-                    type="password"
-                    value={newPassword2}
-                    onChange={(e) => setNewPassword2(e.target.value)}
-                    style={{
-                      padding: 12,
-                      fontSize: 16,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "var(--input)",
-                      color: "var(--inputText)",
-                    }}
-                    autoComplete="new-password"
-                  />
-
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <button
-                      onClick={setPasswordFromRecovery}
-                      disabled={loading}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid var(--border)",
-                        background: "var(--btn)",
-                        color: "var(--btnText)",
-                        cursor: loading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Update password
-                    </button>
-
-                    <button
-                      onClick={() => setResetMode(false)}
-                      disabled={loading}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid var(--border)",
-                        background: "transparent",
-                        color: "var(--text)",
-                        cursor: loading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Back
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ display: "grid", gap: 12 }}>
-                  <input
-                    placeholder="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={{
-                      padding: 12,
-                      fontSize: 16,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "var(--input)",
-                      color: "var(--inputText)",
-                    }}
-                    autoComplete="email"
-                  />
-                  <input
-                    placeholder="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    style={{
-                      padding: 12,
-                      fontSize: 16,
-                      borderRadius: 10,
-                      border: "1px solid var(--border)",
-                      background: "var(--input)",
-                      color: "var(--inputText)",
-                    }}
-                    autoComplete="current-password"
-                  />
-
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <button
-                      onClick={signIn}
-                      disabled={loading}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid var(--border)",
-                        background: "var(--btn)",
-                        color: "var(--btnText)",
-                        cursor: loading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Sign in
-                    </button>
-
-                    <button
-                      onClick={signUp}
-                      disabled={loading}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid var(--border)",
-                        background: "transparent",
-                        color: "var(--text)",
-                        cursor: loading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Sign up
-                    </button>
-
-                    <button
-                      onClick={forgotPassword}
-                      disabled={loading}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid var(--border)",
-                        background: "transparent",
-                        color: "var(--text)",
-                        cursor: loading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button onClick={signIn} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111", background: "#111", color: "white" }}>
+                Sign in
+              </button>
+              <button onClick={signUp} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}>
+                Sign up
+              </button>
+              <button onClick={forgotPassword} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}>
+                Forgot password?
+              </button>
+            </div>
 
             {err && (
-              <div
-                style={{
-                  marginTop: 14,
-                  border: "1px solid rgba(220, 38, 38, .55)",
-                  padding: 12,
-                  borderRadius: 10,
-                  color: "rgba(220, 38, 38, 1)",
-                  background: "rgba(220, 38, 38, .08)",
-                  whiteSpace: "pre-wrap",
-                }}
-              >
+              <div style={{ border: "1px solid rgba(220,38,38,.55)", padding: 12, borderRadius: 10, color: "rgb(220,38,38)", background: "rgba(220,38,38,.08)", whiteSpace: "pre-wrap" }}>
                 {err}
               </div>
             )}
@@ -516,82 +404,42 @@ export default function Page() {
   return (
     <>
       {styles}
-      <main style={{ maxWidth: 980, margin: "30px auto 60px", padding: "0 16px" }}>
-        {/* header: never overlaps; title centered; sign out pinned right */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr minmax(0, 980px) 1fr",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <div />
-          <div
+      <main style={{ maxWidth: 980, margin: "40px auto", padding: "0 16px", fontFamily: "system-ui" }}>
+        <div style={{ position: "relative", marginBottom: 14 }}>
+          <h1 style={{ fontSize: 34, margin: "0 auto", textAlign: "center", lineHeight: 1.2 }}>
+            Does this artwork represent the living conditions of its time?
+          </h1>
+
+          <button
+            onClick={signOut}
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr auto 1fr",
-              alignItems: "center",
-              gap: 12,
+              position: "absolute",
+              right: 0,
+              top: 0,
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: "1px solid #111",
+              background: "transparent",
+              color: "inherit",
             }}
           >
-            <div />
-            <h1 style={{ margin: 0, fontSize: 34, textAlign: "center", lineHeight: 1.15 }}>
-              Does this artwork represent the living conditions of its time?
-            </h1>
-            <div style={{ justifySelf: "end" }}>
-              <button
-                onClick={signOut}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid var(--border)",
-                  background: "transparent",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-          <div />
+            Sign out
+          </button>
         </div>
 
         {err && (
-          <div
-            style={{
-              border: "1px solid rgba(220, 38, 38, .55)",
-              padding: 12,
-              borderRadius: 10,
-              color: "rgba(220, 38, 38, 1)",
-              background: "rgba(220, 38, 38, .08)",
-              marginBottom: 16,
-              whiteSpace: "pre-wrap",
-            }}
-          >
+          <div style={{ border: "1px solid rgba(220,38,38,.55)", padding: 12, borderRadius: 10, color: "rgb(220,38,38)", background: "rgba(220,38,38,.08)", marginBottom: 16, whiteSpace: "pre-wrap" }}>
             {err}
           </div>
         )}
 
-        {loading && <div style={{ marginBottom: 12, opacity: 0.8, color: "var(--muted)" }}>Loading…</div>}
+        {loading && <div style={{ marginBottom: 12, opacity: 0.7 }}>Loading…</div>}
 
         {!currentPhoto ? (
-          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.85, color: "var(--muted)" }}>
-            No more photos available right now.
-          </div>
+          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.8 }}>No more photos available right now.</div>
         ) : (
-          <div style={{ marginTop: 10 }}>
-            <div
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 14,
-                padding: 16,
-                marginBottom: 16,
-                background: "var(--card)",
-              }}
-            >
+          <div style={{ marginTop: 18 }}>
+            <div style={{ border: "1px solid rgba(0,0,0,.12)", borderRadius: 14, padding: 16, marginBottom: 16, background: "white" }}>
               <img
                 src={publicUrl(currentPhoto.storage_path)}
                 alt=""
@@ -599,38 +447,39 @@ export default function Page() {
               />
             </div>
 
-            {/* Relevant on the LEFT, Wealth on the RIGHT */}
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              {/* Relevant score on LEFT */}
               <Section
                 title="Relevant score"
                 value={relevance}
                 onChange={setRelevance}
                 rationale={relevanceWhy}
                 setRationale={setRelevanceWhy}
-                baseValue={0}
-                labels={{
+                baseline={0}
+                scaleLabels={{
                   left: "0 — Not representative",
-                  middle: "5 — Neither representative nor unrepresentative",
+                  mid: "5 — Neither representative nor unrepresentative",
                   right: "10 — Very representative",
                 }}
               />
 
+              {/* Wealth score on RIGHT */}
               <Section
                 title="Level of wealth"
                 value={wealth}
                 onChange={setWealth}
                 rationale={wealthWhy}
                 setRationale={setWealthWhy}
-                baseValue={5}
-                labels={{
+                baseline={5}
+                scaleLabels={{
                   left: "0 — Extremely poor",
-                  middle: "5 — Neither poor nor rich",
+                  mid: "5 — Neither poor nor rich",
                   right: "10 — Extremely rich",
                 }}
               />
             </div>
 
-            <div style={{ height: 20 }} />
+            <div style={{ height: 22 }} />
 
             <button
               onClick={saveAndNext}
@@ -639,9 +488,9 @@ export default function Page() {
                 padding: "12px 18px",
                 fontSize: 16,
                 borderRadius: 12,
-                border: "1px solid var(--border)",
-                background: canSave ? "var(--btn)" : "rgba(0,0,0,.20)",
-                color: canSave ? "var(--btnText)" : "rgba(255,255,255,.85)",
+                border: "1px solid #111",
+                background: canSave ? "#111" : "#c9c9c9",
+                color: "white",
                 cursor: canSave ? "pointer" : "not-allowed",
               }}
             >
@@ -660,28 +509,21 @@ function Section({
   onChange,
   rationale,
   setRationale,
-  baseValue,
-  labels,
+  baseline,
+  scaleLabels,
 }: {
   title: string;
   value: number;
   onChange: (v: number) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  baseValue: number;
-  labels: { left: string; middle: string; right: string };
+  baseline: number; // rationale required when value !== baseline
+  scaleLabels: { left: string; mid: string; right: string };
 }) {
-  const needsWhy = value !== baseValue;
+  const needsWhy = value !== baseline;
 
   return (
-    <div
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 16,
-        background: "var(--card)",
-      }}
-    >
+    <div style={{ border: "1px solid rgba(0,0,0,.12)", borderRadius: 14, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{title}</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -697,19 +539,10 @@ function Section({
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 10,
-          marginTop: 8,
-          fontSize: 12,
-          color: "var(--muted)",
-        }}
-      >
-        <div style={{ textAlign: "left" }}>{labels.left}</div>
-        <div style={{ textAlign: "center" }}>{labels.middle}</div>
-        <div style={{ textAlign: "right" }}>{labels.right}</div>
+      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75, display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <span>{scaleLabels.left}</span>
+        <span style={{ textAlign: "center", flex: 1 }}>{scaleLabels.mid}</span>
+        <span style={{ textAlign: "right" }}>{scaleLabels.right}</span>
       </div>
 
       <div style={{ marginTop: 12 }}>
@@ -722,15 +555,12 @@ function Section({
             width: "100%",
             padding: 10,
             borderRadius: 12,
-            border: needsWhy ? "1px solid rgba(34,197,94,.9)" : "1px solid var(--border)",
-            background: "var(--input)",
-            color: "var(--inputText)",
+            border: needsWhy ? "1px solid rgba(22,163,74,.9)" : "1px solid rgba(0,0,0,.18)",
             outline: "none",
-            resize: "vertical",
           }}
         />
         {needsWhy && rationale.trim().length === 0 && (
-          <div style={{ marginTop: 6, fontSize: 12, color: "rgba(34,197,94,1)" }}>Required.</div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "rgb(22,163,74)" }}>Required.</div>
         )}
       </div>
     </div>
