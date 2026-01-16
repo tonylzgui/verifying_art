@@ -48,7 +48,7 @@ export default function Page() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // detect supabase recovery links (e.g. /#access_token=...&type=recovery)
+  // detect supabase recovery links (/#access_token=...&type=recovery)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
@@ -194,7 +194,6 @@ export default function Page() {
 
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
-    // creates/ensures per-user queue (RPC should exist in your DB)
     await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
 
@@ -276,20 +275,15 @@ export default function Page() {
   // ---------- styles ----------
   const styles = (
     <style>{`
-      :root {
-        color-scheme: light dark;
-      }
-      body {
-        background: #f6f7f9;
-        color: #111;
-      }
+      :root { color-scheme: light dark; }
+      body { background: #f6f7f9; color: #111; }
       @media (prefers-color-scheme: dark) {
         body { background: #0b0f17; color: #f3f4f6; }
       }
     `}</style>
   );
 
-  // ---- UI (reset mode: show even if session exists) ----
+  // ---- UI (reset mode) ----
   if (resetMode) {
     return (
       <>
@@ -405,26 +399,27 @@ export default function Page() {
     <>
       {styles}
       <main style={{ maxWidth: 980, margin: "40px auto", padding: "0 16px", fontFamily: "system-ui" }}>
-        <div style={{ position: "relative", marginBottom: 14 }}>
-          <h1 style={{ fontSize: 34, margin: "0 auto", textAlign: "center", lineHeight: 1.2 }}>
+        {/* FIXED HEADER LAYOUT */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "start", marginBottom: 14 }}>
+          <div /> {/* left spacer */}
+          <h1 style={{ fontSize: 34, margin: 0, textAlign: "center", lineHeight: 1.2 }}>
             Does this artwork represent the living conditions of its time?
           </h1>
-
-          <button
-            onClick={signOut}
-            style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
-              padding: "8px 12px",
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: "transparent",
-              color: "inherit",
-            }}
-          >
-            Sign out
-          </button>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={signOut}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "1px solid #111",
+                background: "transparent",
+                color: "inherit",
+                marginLeft: 12,
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
 
         {err && (
@@ -517,7 +512,7 @@ function Section({
   onChange: (v: number) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  baseline: number; // rationale required when value !== baseline
+  baseline: number;
   scaleLabels: { left: string; mid: string; right: string };
 }) {
   const needsWhy = value !== baseline;
@@ -527,15 +522,7 @@ function Section({
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{title}</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <input
-          type="range"
-          min={0}
-          max={10}
-          step={1}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ width: "100%" }}
-        />
+        <input type="range" min={0} max={10} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ width: "100%" }} />
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       </div>
 
