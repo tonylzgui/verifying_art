@@ -300,7 +300,7 @@ export default function Page() {
             onClick={signOut}
             style={{
               position: "absolute",
-              right: -6,
+              right: -10,
               top: 0,
               padding: "8px 12px",
               borderRadius: 10,
