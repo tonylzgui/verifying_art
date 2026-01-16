@@ -9,6 +9,9 @@ type PhotoRow = {
   storage_path: string;
 };
 
+// Optional: make anchor count configurable later via Vercel env
+const ANCHOR_N = Number(process.env.NEXT_PUBLIC_ANCHOR_N || "20");
+
 export default function Page() {
   const [session, setSession] = useState<any>(null);
 
@@ -22,69 +25,15 @@ export default function Page() {
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
-  // Wealth defaults to 5 (neutral)
+  // Wealth defaults to 5, rationale required if moved off 5
   const [wealth, setWealth] = useState<number>(5);
   const [wealthWhy, setWealthWhy] = useState<string>("");
 
-  // Relevance defaults to 0 (not representative)
+  // Relevance defaults to 0, rationale required if moved off 0
   const [relevance, setRelevance] = useState<number>(0);
   const [relevanceWhy, setRelevanceWhy] = useState<string>("");
 
   const userId = session?.user?.id as string | undefined;
-
-  const TITLE = "Does this artwork represent the living conditions of its time?";
-
-  const styles = {
-    page: {
-      minHeight: "100vh",
-      padding: "40px 12px",
-      background: "#f6f7f9",
-      color: "#111",
-      fontFamily: "system-ui",
-      colorScheme: "light" as const, // force light rendering for form controls
-    },
-    card: {
-      border: "1px solid #ddd",
-      borderRadius: 12,
-      padding: 16,
-      background: "white",
-    },
-    error: {
-      border: "1px solid #f2a2a2",
-      padding: 12,
-      borderRadius: 8,
-      color: "#a11",
-    },
-    input: {
-      padding: 12,
-      fontSize: 16,
-      borderRadius: 10,
-      border: "1px solid #d6d6d6",
-      background: "white",
-      color: "#111",
-      outline: "none",
-    },
-    button: {
-      padding: "10px 14px",
-      borderRadius: 10,
-      border: "1px solid #111",
-      background: "#111",
-      color: "white",
-      cursor: "pointer",
-    },
-    buttonSecondary: {
-      padding: "10px 14px",
-      borderRadius: 10,
-      border: "1px solid #bbb",
-      background: "white",
-      color: "#111",
-      cursor: "pointer",
-    },
-    disabled: {
-      opacity: 0.6,
-      cursor: "not-allowed",
-    },
-  } as const;
 
   // ---- auth wiring ----
   useEffect(() => {
@@ -196,7 +145,8 @@ export default function Page() {
 
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
-    await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
+    // creates/ensures per-user queue (RPC should exist in your DB)
+    await getSupabase().rpc("ensure_queue", { anchor_n: ANCHOR_N });
     if (!userId) return;
 
     setErr(null);
@@ -274,82 +224,112 @@ export default function Page() {
     }
   }
 
+  const pageWrap: React.CSSProperties = {
+    minHeight: "100vh",
+    background: "#f6f7f9",
+    color: "#111",
+    padding: "32px 16px",
+    fontFamily: "system-ui",
+  };
+
+  const card: React.CSSProperties = {
+    background: "white",
+    border: "1px solid #ddd",
+    borderRadius: 12,
+  };
+
   // ---- UI (logged out) ----
   if (!session) {
     return (
-      <main style={styles.page}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 18 }}>{TITLE}</h1>
+      <div style={pageWrap}>
+        <main style={{ maxWidth: 560, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 32, lineHeight: 1.2, textAlign: "center", margin: "6px 0 22px" }}>
+            Does this artwork represent the living conditions of its time?
+          </h1>
 
-          <div style={{ ...styles.card, maxWidth: 520 }}>
-            <div style={{ display: "grid", gap: 12 }}>
-              <input
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={styles.input}
-                autoComplete="email"
-              />
-              <input
-                placeholder="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.input}
-                autoComplete="current-password"
-              />
+          <div style={{ display: "grid", gap: 12 }}>
+            <input
+              placeholder="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ccc", background: "white", color: "#111" }}
+              autoComplete="email"
+            />
+            <input
+              placeholder="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ccc", background: "white", color: "#111" }}
+              autoComplete="current-password"
+            />
 
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <button onClick={signIn} disabled={loading} style={{ ...styles.button, ...(loading ? styles.disabled : {}) }}>
-                  Sign in
-                </button>
-                <button
-                  onClick={signUp}
-                  disabled={loading}
-                  style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
-                >
-                  Sign up
-                </button>
-                <button
-                  onClick={forgotPassword}
-                  disabled={loading}
-                  style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              {err && <div style={styles.error}>{err}</div>}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+              <button onClick={signIn} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111" }}>
+                Sign in
+              </button>
+              <button onClick={signUp} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111" }}>
+                Sign up
+              </button>
+              <button onClick={forgotPassword} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111" }}>
+                Forgot password?
+              </button>
             </div>
+
+            {err && (
+              <div style={{ border: "1px solid #f2a2a2", padding: 12, borderRadius: 10, color: "#a11", background: "white" }}>
+                {err}
+              </div>
+            )}
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     );
   }
 
   // ---- UI (logged in) ----
   return (
-    <main style={styles.page}>
-      <div style={{ maxWidth: 980, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 10, maxWidth: 780 }}>{TITLE}</h1>
-          <button onClick={signOut} style={styles.buttonSecondary}>
+    <div style={pageWrap}>
+      <main style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <h1 style={{ fontSize: 32, lineHeight: 1.2, textAlign: "center", margin: "6px 0 0" }}>
+            Does this artwork represent the living conditions of its time?
+          </h1>
+
+          <button
+            onClick={signOut}
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: "1px solid #111",
+              background: "white",
+              color: "#111",
+            }}
+          >
             Sign out
           </button>
         </div>
 
-        {err && <div style={{ ...styles.error, marginBottom: 16 }}>{err}</div>}
-        {loading && <div style={{ marginBottom: 12, opacity: 0.75, color: "#111" }}>Loading…</div>}
+        {err && (
+          <div style={{ border: "1px solid #f2a2a2", padding: 12, borderRadius: 10, color: "#a11", background: "white", marginBottom: 12 }}>
+            {err}
+          </div>
+        )}
+
+        {loading && <div style={{ marginBottom: 12, opacity: 0.7 }}>Loading…</div>}
 
         {!currentPhoto ? (
-          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.85 }}>No more photos available right now.</div>
+          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.8 }}>No more photos available right now.</div>
         ) : (
-          <div style={{ marginTop: 18 }}>
-            <div style={{ ...styles.card, marginBottom: 16 }}>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ ...card, padding: 16, marginBottom: 16 }}>
               <img
                 src={publicUrl(currentPhoto.storage_path)}
                 alt=""
-                style={{ width: "100%", height: 520, objectFit: "contain", background: "#fff" }}
+                style={{ width: "100%", height: 520, objectFit: "contain", display: "block" }}
               />
             </div>
 
@@ -361,11 +341,10 @@ export default function Page() {
                 onChange={setRelevance}
                 rationale={relevanceWhy}
                 setRationale={setRelevanceWhy}
-                needsWhyRule="not-default"
-                defaultValue={0}
+                neutralValue={0}
                 labels={{
                   left: "0 — Not representative",
-                  mid: "5 — Neither representative",
+                  middle: "5 — Neither representative",
                   right: "10 — Very representative",
                 }}
               />
@@ -376,17 +355,16 @@ export default function Page() {
                 onChange={setWealth}
                 rationale={wealthWhy}
                 setRationale={setWealthWhy}
-                needsWhyRule="not-default"
-                defaultValue={5}
+                neutralValue={5}
                 labels={{
                   left: "0 — Extremely poor",
-                  mid: "5 — Neither poor nor rich",
+                  middle: "5 — Neither poor nor rich",
                   right: "10 — Extremely rich",
                 }}
               />
             </div>
 
-            <div style={{ height: 22 }} />
+            <div style={{ height: 18 }} />
 
             <button
               onClick={saveAndNext}
@@ -396,24 +374,17 @@ export default function Page() {
                 fontSize: 16,
                 borderRadius: 10,
                 border: "1px solid #111",
-                background: canSave ? "#111" : "#cfcfcf",
-                color: "white",
+                background: canSave ? "#111" : "#e5e7eb",
+                color: canSave ? "white" : "#666",
                 cursor: canSave ? "pointer" : "not-allowed",
               }}
             >
               Save & Next
             </button>
-
-            {!canSave && (
-              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.75 }}>
-                Tip: for <b>Relevant score</b>, rationale is required if you move off <b>0</b>. For <b>Level of wealth</b>,
-                rationale is required if you move off <b>5</b>.
-              </div>
-            )}
           </div>
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -423,7 +394,7 @@ function Section({
   onChange,
   rationale,
   setRationale,
-  defaultValue,
+  neutralValue,
   labels,
 }: {
   title: string;
@@ -431,16 +402,15 @@ function Section({
   onChange: (v: number) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  needsWhyRule: "not-default";
-  defaultValue: number;
-  labels: { left: string; mid: string; right: string };
+  neutralValue: number;
+  labels: { left: string; middle: string; right: string };
 }) {
-  const needsWhy = value !== defaultValue;
-  const sliderColor = value === defaultValue ? "#2563eb" : "#16a34a";
+  const needsWhy = value !== neutralValue;
+  const sliderColor = value === neutralValue ? "#2563eb" : "#16a34a"; // blue if neutral, green if moved
 
   return (
-    <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
-      <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
+    <div style={{ background: "white", border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, color: "#111" }}>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{title}</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <input
@@ -452,24 +422,13 @@ function Section({
           onChange={(e) => onChange(Number(e.target.value))}
           style={{ width: "100%", accentColor: sliderColor }}
         />
-        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>{value}</div>
+        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       </div>
 
-      {/* Labels for 0 / 5 / 10 */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 10,
-          marginTop: 8,
-          fontSize: 12,
-          color: "#333",
-          opacity: 0.85,
-        }}
-      >
-        <div style={{ width: "33%", textAlign: "left" }}>{labels.left}</div>
-        <div style={{ width: "34%", textAlign: "center" }}>{labels.mid}</div>
-        <div style={{ width: "33%", textAlign: "right" }}>{labels.right}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+        <div>{labels.left}</div>
+        <div style={{ textAlign: "center" }}>{labels.middle}</div>
+        <div style={{ textAlign: "right" }}>{labels.right}</div>
       </div>
 
       <div style={{ marginTop: 12 }}>
@@ -482,7 +441,7 @@ function Section({
             width: "100%",
             padding: 10,
             borderRadius: 10,
-            border: needsWhy ? "1px solid #16a34a" : "1px solid #d6d6d6",
+            border: needsWhy ? "1px solid #16a34a" : "1px solid #ddd",
             outline: "none",
             background: "white",
             color: "#111",
