@@ -392,11 +392,18 @@ export default function Page() {
   // ---- UI (logged out) ----
   if (!session) {
     return (
-      <main style={styles.page}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 18 }}>{TITLE}</h1>
+      <main
+        style={{
+          ...styles.page,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 18px 0" }}>{TITLE}</h1>
 
-          <div style={{ ...styles.card, maxWidth: 520 }}>
+          <div style={{ ...styles.card, maxWidth: 520, margin: "0 auto" }}>
             <div style={{ display: "grid", gap: 12 }}>
               <input
                 placeholder="email"
@@ -450,9 +457,22 @@ export default function Page() {
   return (
     <main style={styles.page}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 10, maxWidth: 780 }}>{TITLE}</h1>
-          <button onClick={signOut} style={styles.buttonSecondary}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto 1fr",
+            alignItems: "baseline",
+            gap: 12,
+            marginBottom: 10,
+          }}
+        >
+          <div /> {/* left spacer */}
+
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: 0, textAlign: "center", maxWidth: 780 }}>
+            {TITLE}
+          </h1>
+
+          <button onClick={signOut} style={{ ...styles.buttonSecondary, justifySelf: "end" }}>
             Sign out
           </button>
         </div>
