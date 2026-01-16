@@ -9,9 +9,6 @@ type PhotoRow = {
   storage_path: string;
 };
 
-// Optional: make anchor count configurable later via Vercel env
-const ANCHOR_N = Number(process.env.NEXT_PUBLIC_ANCHOR_N || "20");
-
 export default function Page() {
   const [session, setSession] = useState<any>(null);
 
@@ -19,30 +16,51 @@ export default function Page() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // reset password flow
+  const [resetMode, setResetMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
+
   // app state
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
-  // Wealth defaults to 5, rationale required if moved off 5
-  const [wealth, setWealth] = useState<number>(5);
-  const [wealthWhy, setWealthWhy] = useState<string>("");
-
-  // Relevance defaults to 0, rationale required if moved off 0
+  // scoring state
   const [relevance, setRelevance] = useState<number>(0);
   const [relevanceWhy, setRelevanceWhy] = useState<string>("");
+
+  const [wealth, setWealth] = useState<number>(5);
+  const [wealthWhy, setWealthWhy] = useState<string>("");
 
   const userId = session?.user?.id as string | undefined;
 
   // ---- auth wiring ----
   useEffect(() => {
+    // detect password recovery links so we show reset UI on this same page (no /reset route needed)
+    if (typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      const isRecovery =
+        u.searchParams.get("type") === "recovery" ||
+        u.searchParams.get("reset") === "1" ||
+        window.location.hash.includes("access_token") ||
+        window.location.hash.includes("recovery");
+
+      if (isRecovery) setResetMode(true);
+    }
+
     getSupabase()
       .auth.getSession()
       .then(({ data }) => setSession(data.session ?? null));
 
-    const { data: sub } = getSupabase().auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = getSupabase().auth.onAuthStateChange((event, s) => {
       setSession(s);
+
+      // Supabase will fire this when the user lands via recovery link
+      if (event === "PASSWORD_RECOVERY") {
+        setResetMode(true);
+      }
     });
 
     return () => sub.subscription.unsubscribe();
@@ -59,22 +77,22 @@ export default function Page() {
   }, [session?.user?.id]);
 
   // ---- helpers ----
-  const wealthNeedsWhy = wealth !== 5;
-  const relevanceNeedsWhy = relevance !== 0;
+  const relevanceNeedsWhy = relevance !== 0; // required if moved off 0
+  const wealthNeedsWhy = wealth !== 5; // required if moved off 5
 
   const canSave = useMemo(() => {
     if (!userId) return false;
     if (!currentPhoto) return false;
-    if (wealthNeedsWhy && wealthWhy.trim().length === 0) return false;
     if (relevanceNeedsWhy && relevanceWhy.trim().length === 0) return false;
+    if (wealthNeedsWhy && wealthWhy.trim().length === 0) return false;
     return true;
-  }, [userId, currentPhoto, wealthNeedsWhy, wealthWhy, relevanceNeedsWhy, relevanceWhy]);
+  }, [userId, currentPhoto, relevanceNeedsWhy, relevanceWhy, wealthNeedsWhy, wealthWhy]);
 
   function resetInputs() {
-    setWealth(5);
-    setWealthWhy("");
     setRelevance(0);
     setRelevanceWhy("");
+    setWealth(5);
+    setWealthWhy("");
   }
 
   // ---- auth actions ----
@@ -88,7 +106,10 @@ export default function Page() {
       });
 
       if (!error) {
-        setErr("Sign up successful. If email confirmation is enabled, confirm then sign in.");
+        // Supabase may intentionally not reveal whether email exists.
+        setErr(
+          "If this is a new account, check your email to confirm. If you already have an account, try “Sign in” or “Forgot password?”."
+        );
         return;
       }
 
@@ -128,11 +149,46 @@ export default function Page() {
 
     setLoading(true);
     try {
+      // Redirect back to / so we don't need a /reset route
       const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
-        redirectTo: `${window.location.origin}/reset`,
+        redirectTo: `${window.location.origin}/?reset=1`,
       });
       if (error) setErr(error.message);
       else setErr("Password reset email sent. Check your inbox.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setPasswordFromRecovery() {
+    setErr(null);
+
+    if (!newPassword || newPassword.length < 8) {
+      setErr("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== newPassword2) {
+      setErr("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await getSupabase().auth.updateUser({ password: newPassword });
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+
+      setErr("Password updated. You can now sign in.");
+      setResetMode(false);
+      setNewPassword("");
+      setNewPassword2("");
+
+      // Clean URL so refresh doesn't keep showing reset mode
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
     } finally {
       setLoading(false);
     }
@@ -146,7 +202,7 @@ export default function Page() {
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
     // creates/ensures per-user queue (RPC should exist in your DB)
-    await getSupabase().rpc("ensure_queue", { anchor_n: ANCHOR_N });
+    await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
 
     setErr(null);
@@ -224,116 +280,326 @@ export default function Page() {
     }
   }
 
-  const pageWrap: React.CSSProperties = {
-    minHeight: "100vh",
-    background: "#f6f7f9",
-    color: "#111",
-    padding: "32px 16px",
-    fontFamily: "system-ui",
-  };
-
-  const card: React.CSSProperties = {
-    background: "white",
-    border: "1px solid #ddd",
-    borderRadius: 12,
-  };
+  // ---- styles (dark mode safe) ----
+  const styles = (
+    <style>{`
+      :root{
+        --bg: #f6f7f8;
+        --text: #0b0c0f;
+        --muted: rgba(0,0,0,.65);
+        --card: #ffffff;
+        --border: #d7dbe0;
+        --input: #ffffff;
+        --inputText: #0b0c0f;
+        --placeholder: rgba(0,0,0,.45);
+        --btn: #111111;
+        --btnText: #ffffff;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg: #0b0c0f;
+          --text: #f5f7fb;
+          --muted: rgba(245,247,251,.70);
+          --card: #111827;
+          --border: #334155;
+          --input: #0f172a;
+          --inputText: #f5f7fb;
+          --placeholder: rgba(245,247,251,.55);
+          --btn: #f5f7fb;
+          --btnText: #0b0c0f;
+        }
+      }
+      html, body { height: 100%; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      }
+      input, textarea, button { font-family: inherit; }
+      input::placeholder, textarea::placeholder { color: var(--placeholder); }
+    `}</style>
+  );
 
   // ---- UI (logged out) ----
   if (!session) {
     return (
-      <div style={pageWrap}>
-        <main style={{ maxWidth: 560, margin: "0 auto" }}>
-          <h1 style={{ fontSize: 32, lineHeight: 1.2, textAlign: "center", margin: "6px 0 22px" }}>
+      <>
+        {styles}
+        <main style={{ maxWidth: 520, margin: "44px auto", padding: "0 16px" }}>
+          <h1 style={{ fontSize: 34, margin: "0 0 18px 0", lineHeight: 1.15 }}>
             Does this artwork represent the living conditions of its time?
           </h1>
 
-          <div style={{ display: "grid", gap: 12 }}>
-            <input
-              placeholder="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ccc", background: "white", color: "#111" }}
-              autoComplete="email"
-            />
-            <input
-              placeholder="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #ccc", background: "white", color: "#111" }}
-              autoComplete="current-password"
-            />
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: 16,
+              background: "var(--card)",
+            }}
+          >
+            {resetMode ? (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 650, marginBottom: 10 }}>Set a new password</div>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-              <button onClick={signIn} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111" }}>
-                Sign in
-              </button>
-              <button onClick={signUp} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111" }}>
-                Sign up
-              </button>
-              <button onClick={forgotPassword} disabled={loading} style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #111" }}>
-                Forgot password?
-              </button>
-            </div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <input
+                    placeholder="new password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    style={{
+                      padding: 12,
+                      fontSize: 16,
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "var(--input)",
+                      color: "var(--inputText)",
+                    }}
+                    autoComplete="new-password"
+                  />
+                  <input
+                    placeholder="confirm new password"
+                    type="password"
+                    value={newPassword2}
+                    onChange={(e) => setNewPassword2(e.target.value)}
+                    style={{
+                      padding: 12,
+                      fontSize: 16,
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "var(--input)",
+                      color: "var(--inputText)",
+                    }}
+                    autoComplete="new-password"
+                  />
+
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button
+                      onClick={setPasswordFromRecovery}
+                      disabled={loading}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: "1px solid var(--border)",
+                        background: "var(--btn)",
+                        color: "var(--btnText)",
+                        cursor: loading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Update password
+                    </button>
+
+                    <button
+                      onClick={() => setResetMode(false)}
+                      disabled={loading}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: "1px solid var(--border)",
+                        background: "transparent",
+                        color: "var(--text)",
+                        cursor: loading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "grid", gap: 12 }}>
+                  <input
+                    placeholder="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{
+                      padding: 12,
+                      fontSize: 16,
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "var(--input)",
+                      color: "var(--inputText)",
+                    }}
+                    autoComplete="email"
+                  />
+                  <input
+                    placeholder="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{
+                      padding: 12,
+                      fontSize: 16,
+                      borderRadius: 10,
+                      border: "1px solid var(--border)",
+                      background: "var(--input)",
+                      color: "var(--inputText)",
+                    }}
+                    autoComplete="current-password"
+                  />
+
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button
+                      onClick={signIn}
+                      disabled={loading}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: "1px solid var(--border)",
+                        background: "var(--btn)",
+                        color: "var(--btnText)",
+                        cursor: loading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Sign in
+                    </button>
+
+                    <button
+                      onClick={signUp}
+                      disabled={loading}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: "1px solid var(--border)",
+                        background: "transparent",
+                        color: "var(--text)",
+                        cursor: loading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Sign up
+                    </button>
+
+                    <button
+                      onClick={forgotPassword}
+                      disabled={loading}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        border: "1px solid var(--border)",
+                        background: "transparent",
+                        color: "var(--text)",
+                        cursor: loading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
             {err && (
-              <div style={{ border: "1px solid #f2a2a2", padding: 12, borderRadius: 10, color: "#a11", background: "white" }}>
+              <div
+                style={{
+                  marginTop: 14,
+                  border: "1px solid rgba(220, 38, 38, .55)",
+                  padding: 12,
+                  borderRadius: 10,
+                  color: "rgba(220, 38, 38, 1)",
+                  background: "rgba(220, 38, 38, .08)",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {err}
               </div>
             )}
           </div>
         </main>
-      </div>
+      </>
     );
   }
 
   // ---- UI (logged in) ----
   return (
-    <div style={pageWrap}>
-      <main style={{ maxWidth: 980, margin: "0 auto" }}>
-        <div style={{ position: "relative", marginBottom: 10 }}>
-          <h1 style={{ fontSize: 32, lineHeight: 1.2, textAlign: "center", margin: "6px 0 0" }}>
-            Does this artwork represent the living conditions of its time?
-          </h1>
-
-          <button
-            onClick={signOut}
+    <>
+      {styles}
+      <main style={{ maxWidth: 980, margin: "30px auto 60px", padding: "0 16px" }}>
+        {/* header: never overlaps; title centered; sign out pinned right */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr minmax(0, 980px) 1fr",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <div />
+          <div
             style={{
-              position: "absolute",
-              right: -10,
-              top: 0,
-              padding: "8px 12px",
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: "white",
-              color: "#111",
+              display: "grid",
+              gridTemplateColumns: "1fr auto 1fr",
+              alignItems: "center",
+              gap: 12,
             }}
           >
-            Sign out
-          </button>
+            <div />
+            <h1 style={{ margin: 0, fontSize: 34, textAlign: "center", lineHeight: 1.15 }}>
+              Does this artwork represent the living conditions of its time?
+            </h1>
+            <div style={{ justifySelf: "end" }}>
+              <button
+                onClick={signOut}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+          <div />
         </div>
 
         {err && (
-          <div style={{ border: "1px solid #f2a2a2", padding: 12, borderRadius: 10, color: "#a11", background: "white", marginBottom: 12 }}>
+          <div
+            style={{
+              border: "1px solid rgba(220, 38, 38, .55)",
+              padding: 12,
+              borderRadius: 10,
+              color: "rgba(220, 38, 38, 1)",
+              background: "rgba(220, 38, 38, .08)",
+              marginBottom: 16,
+              whiteSpace: "pre-wrap",
+            }}
+          >
             {err}
           </div>
         )}
 
-        {loading && <div style={{ marginBottom: 12, opacity: 0.7 }}>Loading…</div>}
+        {loading && <div style={{ marginBottom: 12, opacity: 0.8, color: "var(--muted)" }}>Loading…</div>}
 
         {!currentPhoto ? (
-          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.8 }}>No more photos available right now.</div>
+          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.85, color: "var(--muted)" }}>
+            No more photos available right now.
+          </div>
         ) : (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ ...card, padding: 16, marginBottom: 16 }}>
+          <div style={{ marginTop: 10 }}>
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: 16,
+                marginBottom: 16,
+                background: "var(--card)",
+              }}
+            >
               <img
                 src={publicUrl(currentPhoto.storage_path)}
                 alt=""
-                style={{ width: "100%", height: 520, objectFit: "contain", display: "block" }}
+                style={{ width: "100%", height: 560, objectFit: "contain", borderRadius: 10 }}
               />
             </div>
 
-            {/* Relevant LEFT, Wealth RIGHT */}
+            {/* Relevant on the LEFT, Wealth on the RIGHT */}
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
               <Section
                 title="Relevant score"
@@ -341,7 +607,7 @@ export default function Page() {
                 onChange={setRelevance}
                 rationale={relevanceWhy}
                 setRationale={setRelevanceWhy}
-                neutralValue={0}
+                baseValue={0}
                 labels={{
                   left: "0 — Not representative",
                   middle: "5 — Neither representative nor unrepresentative",
@@ -355,7 +621,7 @@ export default function Page() {
                 onChange={setWealth}
                 rationale={wealthWhy}
                 setRationale={setWealthWhy}
-                neutralValue={5}
+                baseValue={5}
                 labels={{
                   left: "0 — Extremely poor",
                   middle: "5 — Neither poor nor rich",
@@ -364,7 +630,7 @@ export default function Page() {
               />
             </div>
 
-            <div style={{ height: 18 }} />
+            <div style={{ height: 20 }} />
 
             <button
               onClick={saveAndNext}
@@ -372,10 +638,10 @@ export default function Page() {
               style={{
                 padding: "12px 18px",
                 fontSize: 16,
-                borderRadius: 10,
-                border: "1px solid #111",
-                background: canSave ? "#111" : "#e5e7eb",
-                color: canSave ? "white" : "#666",
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                background: canSave ? "var(--btn)" : "rgba(0,0,0,.20)",
+                color: canSave ? "var(--btnText)" : "rgba(255,255,255,.85)",
                 cursor: canSave ? "pointer" : "not-allowed",
               }}
             >
@@ -384,7 +650,7 @@ export default function Page() {
           </div>
         )}
       </main>
-    </div>
+    </>
   );
 }
 
@@ -394,7 +660,7 @@ function Section({
   onChange,
   rationale,
   setRationale,
-  neutralValue,
+  baseValue,
   labels,
 }: {
   title: string;
@@ -402,14 +668,20 @@ function Section({
   onChange: (v: number) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  neutralValue: number;
+  baseValue: number;
   labels: { left: string; middle: string; right: string };
 }) {
-  const needsWhy = value !== neutralValue;
-  const sliderColor = value === neutralValue ? "#2563eb" : "#16a34a"; // blue if neutral, green if moved
+  const needsWhy = value !== baseValue;
 
   return (
-    <div style={{ background: "white", border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, color: "#111" }}>
+    <div
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 16,
+        background: "var(--card)",
+      }}
+    >
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>{title}</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -420,13 +692,22 @@ function Section({
           step={1}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{ width: "100%", accentColor: sliderColor }}
+          style={{ width: "100%" }}
         />
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, fontSize: 12, opacity: 0.75 }}>
-        <div>{labels.left}</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 10,
+          marginTop: 8,
+          fontSize: 12,
+          color: "var(--muted)",
+        }}
+      >
+        <div style={{ textAlign: "left" }}>{labels.left}</div>
         <div style={{ textAlign: "center" }}>{labels.middle}</div>
         <div style={{ textAlign: "right" }}>{labels.right}</div>
       </div>
@@ -440,15 +721,16 @@ function Section({
           style={{
             width: "100%",
             padding: 10,
-            borderRadius: 10,
-            border: needsWhy ? "1px solid #16a34a" : "1px solid #ddd",
+            borderRadius: 12,
+            border: needsWhy ? "1px solid rgba(34,197,94,.9)" : "1px solid var(--border)",
+            background: "var(--input)",
+            color: "var(--inputText)",
             outline: "none",
-            background: "white",
-            color: "#111",
+            resize: "vertical",
           }}
         />
         {needsWhy && rationale.trim().length === 0 && (
-          <div style={{ marginTop: 6, fontSize: 12, color: "#16a34a" }}>Required.</div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "rgba(34,197,94,1)" }}>Required.</div>
         )}
       </div>
     </div>
