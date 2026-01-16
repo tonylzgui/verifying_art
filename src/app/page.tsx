@@ -22,13 +22,69 @@ export default function Page() {
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
+  // Wealth defaults to 5 (neutral)
   const [wealth, setWealth] = useState<number>(5);
   const [wealthWhy, setWealthWhy] = useState<string>("");
 
-  const [relevance, setRelevance] = useState<number>(5);
+  // Relevance defaults to 0 (not representative)
+  const [relevance, setRelevance] = useState<number>(0);
   const [relevanceWhy, setRelevanceWhy] = useState<string>("");
 
   const userId = session?.user?.id as string | undefined;
+
+  const TITLE = "Does this artwork represent the living conditions of its time?";
+
+  const styles = {
+    page: {
+      minHeight: "100vh",
+      padding: "40px 12px",
+      background: "#f6f7f9",
+      color: "#111",
+      fontFamily: "system-ui",
+      colorScheme: "light" as const, // force light rendering for form controls
+    },
+    card: {
+      border: "1px solid #ddd",
+      borderRadius: 12,
+      padding: 16,
+      background: "white",
+    },
+    error: {
+      border: "1px solid #f2a2a2",
+      padding: 12,
+      borderRadius: 8,
+      color: "#a11",
+    },
+    input: {
+      padding: 12,
+      fontSize: 16,
+      borderRadius: 10,
+      border: "1px solid #d6d6d6",
+      background: "white",
+      color: "#111",
+      outline: "none",
+    },
+    button: {
+      padding: "10px 14px",
+      borderRadius: 10,
+      border: "1px solid #111",
+      background: "#111",
+      color: "white",
+      cursor: "pointer",
+    },
+    buttonSecondary: {
+      padding: "10px 14px",
+      borderRadius: 10,
+      border: "1px solid #bbb",
+      background: "white",
+      color: "#111",
+      cursor: "pointer",
+    },
+    disabled: {
+      opacity: 0.6,
+      cursor: "not-allowed",
+    },
+  } as const;
 
   // ---- auth wiring ----
   useEffect(() => {
@@ -55,7 +111,7 @@ export default function Page() {
 
   // ---- helpers ----
   const wealthNeedsWhy = wealth !== 5;
-  const relevanceNeedsWhy = relevance !== 5;
+  const relevanceNeedsWhy = relevance !== 0;
 
   const canSave = useMemo(() => {
     if (!userId) return false;
@@ -68,7 +124,7 @@ export default function Page() {
   function resetInputs() {
     setWealth(5);
     setWealthWhy("");
-    setRelevance(5);
+    setRelevance(0);
     setRelevanceWhy("");
   }
 
@@ -140,7 +196,6 @@ export default function Page() {
 
   // ---- core app: load next photo for this user ----
   async function loadNextPhoto() {
-    // creates/ensures per-user queue (RPC should exist in your DB)
     await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
 
@@ -222,43 +277,51 @@ export default function Page() {
   // ---- UI (logged out) ----
   if (!session) {
     return (
-      <main style={{ maxWidth: 520, margin: "40px auto", fontFamily: "system-ui" }}>
-        <h1 style={{ fontSize: 40, marginBottom: 24 }}>Verifying Art</h1>
+      <main style={styles.page}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 18 }}>{TITLE}</h1>
 
-        <div style={{ display: "grid", gap: 12 }}>
-          <input
-            placeholder="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ padding: 12, fontSize: 16 }}
-            autoComplete="email"
-          />
-          <input
-            placeholder="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ padding: 12, fontSize: 16 }}
-            autoComplete="current-password"
-          />
+          <div style={{ ...styles.card, maxWidth: 520 }}>
+            <div style={{ display: "grid", gap: 12 }}>
+              <input
+                placeholder="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={styles.input}
+                autoComplete="email"
+              />
+              <input
+                placeholder="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={styles.input}
+                autoComplete="current-password"
+              />
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button onClick={signIn} disabled={loading} style={{ padding: "10px 14px" }}>
-              Sign in
-            </button>
-            <button onClick={signUp} disabled={loading} style={{ padding: "10px 14px" }}>
-              Sign up
-            </button>
-            <button onClick={forgotPassword} disabled={loading} style={{ padding: "10px 14px" }}>
-              Forgot password?
-            </button>
-          </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button onClick={signIn} disabled={loading} style={{ ...styles.button, ...(loading ? styles.disabled : {}) }}>
+                  Sign in
+                </button>
+                <button
+                  onClick={signUp}
+                  disabled={loading}
+                  style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
+                >
+                  Sign up
+                </button>
+                <button
+                  onClick={forgotPassword}
+                  disabled={loading}
+                  style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
+                >
+                  Forgot password?
+                </button>
+              </div>
 
-          {err && (
-            <div style={{ border: "1px solid #f2a2a2", padding: 12, borderRadius: 8, color: "#a11" }}>
-              {err}
+              {err && <div style={styles.error}>{err}</div>}
             </div>
-          )}
+          </div>
         </div>
       </main>
     );
@@ -266,93 +329,90 @@ export default function Page() {
 
   // ---- UI (logged in) ----
   return (
-    <main style={{ maxWidth: 900, margin: "40px auto", fontFamily: "system-ui" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h1 style={{ fontSize: 40, marginBottom: 10 }}>Verifying Art</h1>
-        <button onClick={signOut} style={{ padding: "8px 12px" }}>
-          Sign out
-        </button>
-      </div>
-
-      {err && (
-        <div
-          style={{
-            border: "1px solid #f2a2a2",
-            padding: 12,
-            borderRadius: 8,
-            color: "#a11",
-            marginBottom: 16,
-          }}
-        >
-          {err}
-        </div>
-      )}
-
-      {loading && <div style={{ marginBottom: 12, opacity: 0.7 }}>Loading…</div>}
-
-      {!currentPhoto ? (
-        <div style={{ marginTop: 24, fontSize: 18, opacity: 0.8 }}>No more photos available right now.</div>
-      ) : (
-        <div style={{ marginTop: 18 }}>
-          <div
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-              background: "white",
-            }}
-          >
-            <img
-              src={publicUrl(currentPhoto.storage_path)}
-              alt=""
-              style={{ width: "100%", height: 520, objectFit: "contain" }}
-            />
-          </div>
-
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-            <Section
-              title="Level of wealth"
-              value={wealth}
-              onChange={setWealth}
-              rationale={wealthWhy}
-              setRationale={setWealthWhy}
-            />
-
-            <Section
-              title="Relevant score"
-              value={relevance}
-              onChange={setRelevance}
-              rationale={relevanceWhy}
-              setRationale={setRelevanceWhy}
-            />
-          </div>
-
-          <div style={{ height: 22 }} />
-
-          <button
-            onClick={saveAndNext}
-            disabled={!canSave || loading}
-            style={{
-              padding: "12px 18px",
-              fontSize: 16,
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: canSave ? "#111" : "#ccc",
-              color: "white",
-              cursor: canSave ? "pointer" : "not-allowed",
-            }}
-          >
-            Save & Next
+    <main style={styles.page}>
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+          <h1 style={{ fontSize: 34, lineHeight: 1.15, marginBottom: 10, maxWidth: 780 }}>{TITLE}</h1>
+          <button onClick={signOut} style={styles.buttonSecondary}>
+            Sign out
           </button>
-
-          {!canSave && (
-            <div style={{ marginTop: 10, fontSize: 13, opacity: 0.7 }}>
-              Tip: if you move a slider off 5, you must type a rationale before saving.
-            </div>
-          )}
         </div>
-      )}
+
+        {err && <div style={{ ...styles.error, marginBottom: 16 }}>{err}</div>}
+        {loading && <div style={{ marginBottom: 12, opacity: 0.75, color: "#111" }}>Loading…</div>}
+
+        {!currentPhoto ? (
+          <div style={{ marginTop: 24, fontSize: 18, opacity: 0.85 }}>No more photos available right now.</div>
+        ) : (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ ...styles.card, marginBottom: 16 }}>
+              <img
+                src={publicUrl(currentPhoto.storage_path)}
+                alt=""
+                style={{ width: "100%", height: 520, objectFit: "contain", background: "#fff" }}
+              />
+            </div>
+
+            {/* Relevant LEFT, Wealth RIGHT */}
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              <Section
+                title="Relevant score"
+                value={relevance}
+                onChange={setRelevance}
+                rationale={relevanceWhy}
+                setRationale={setRelevanceWhy}
+                needsWhyRule="not-default"
+                defaultValue={0}
+                labels={{
+                  left: "0 — Not representative",
+                  mid: "5 — Neither representative",
+                  right: "10 — Very representative",
+                }}
+              />
+
+              <Section
+                title="Level of wealth"
+                value={wealth}
+                onChange={setWealth}
+                rationale={wealthWhy}
+                setRationale={setWealthWhy}
+                needsWhyRule="not-default"
+                defaultValue={5}
+                labels={{
+                  left: "0 — Extremely poor",
+                  mid: "5 — Neither poor nor rich",
+                  right: "10 — Extremely rich",
+                }}
+              />
+            </div>
+
+            <div style={{ height: 22 }} />
+
+            <button
+              onClick={saveAndNext}
+              disabled={!canSave || loading}
+              style={{
+                padding: "12px 18px",
+                fontSize: 16,
+                borderRadius: 10,
+                border: "1px solid #111",
+                background: canSave ? "#111" : "#cfcfcf",
+                color: "white",
+                cursor: canSave ? "pointer" : "not-allowed",
+              }}
+            >
+              Save & Next
+            </button>
+
+            {!canSave && (
+              <div style={{ marginTop: 10, fontSize: 13, opacity: 0.75 }}>
+                Tip: for <b>Relevant score</b>, rationale is required if you move off <b>0</b>. For <b>Level of wealth</b>,
+                rationale is required if you move off <b>5</b>.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
@@ -363,19 +423,24 @@ function Section({
   onChange,
   rationale,
   setRationale,
+  defaultValue,
+  labels,
 }: {
   title: string;
   value: number;
   onChange: (v: number) => void;
   rationale: string;
   setRationale: (s: string) => void;
+  needsWhyRule: "not-default";
+  defaultValue: number;
+  labels: { left: string; mid: string; right: string };
 }) {
-  const needsWhy = value !== 5;
-  const sliderColor = value === 5 ? "#2563eb" : "#16a34a"; // blue -> green
+  const needsWhy = value !== defaultValue;
+  const sliderColor = value === defaultValue ? "#2563eb" : "#16a34a";
 
   return (
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
-      <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 10 }}>{title}</div>
+      <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <input
@@ -385,17 +450,31 @@ function Section({
           step={1}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{
-            width: "100%",
-            accentColor: sliderColor,
-          }}
+          style={{ width: "100%", accentColor: sliderColor }}
         />
-        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>{value}</div>
+      </div>
+
+      {/* Labels for 0 / 5 / 10 */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 10,
+          marginTop: 8,
+          fontSize: 12,
+          color: "#333",
+          opacity: 0.85,
+        }}
+      >
+        <div style={{ width: "33%", textAlign: "left" }}>{labels.left}</div>
+        <div style={{ width: "34%", textAlign: "center" }}>{labels.mid}</div>
+        <div style={{ width: "33%", textAlign: "right" }}>{labels.right}</div>
       </div>
 
       <div style={{ marginTop: 12 }}>
         <textarea
-          placeholder={needsWhy ? "Rationale (required because you chose a score other than 5)" : "Rationale (optional when score = 5)"}
+          placeholder="Please provide a brief rationale"
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={3}
@@ -403,8 +482,10 @@ function Section({
             width: "100%",
             padding: 10,
             borderRadius: 10,
-            border: needsWhy ? "1px solid #16a34a" : "1px solid #ddd",
+            border: needsWhy ? "1px solid #16a34a" : "1px solid #d6d6d6",
             outline: "none",
+            background: "white",
+            color: "#111",
           }}
         />
         {needsWhy && rationale.trim().length === 0 && (
