@@ -604,8 +604,10 @@ function Section({
           fontSize: 12,
           color: "#333",
           opacity: 0.85,
-          minHeight: 44, // reserve space so both columns match even when text wraps
+          height: 64,            // fixed, same for both cards
+          lineHeight: "16px",    // predictable line height
           alignItems: "flex-start",
+
         }}
       >
         <div style={{ width: "33%", textAlign: "left" }}>{labels.left}</div>
