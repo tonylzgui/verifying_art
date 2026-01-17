@@ -454,8 +454,8 @@ export default function Page() {
   // ---- UI (logged in) ----
   const bottomBtnBase: React.CSSProperties = {
     height: 44,
-    minWidth: 140,
-    padding: "12px 18px",
+    minWidth: 150, // <-- bump to ensure identical width
+    padding: "0 18px",
     fontSize: 16,
     borderRadius: 10,
     boxSizing: "border-box",
