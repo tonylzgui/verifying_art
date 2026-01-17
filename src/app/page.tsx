@@ -531,11 +531,20 @@ export default function Page() {
               >
                 Save & Next
               </button>
-
+              
               <button
                 onClick={signOut}
                 disabled={loading}
-                style={{ ...styles.buttonSecondary, ...(loading ? styles.disabled : {}) }}
+                style={{
+                  padding: "12px 18px",      // match Save & Next
+                  fontSize: 16,              // match Save & Next
+                  borderRadius: 10,          // match Save & Next
+                  border: "1px solid #bbb",  // keep secondary style
+                  background: "white",
+                  color: "#111",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.6 : 1,
+                }}
               >
                 Sign out
               </button>
