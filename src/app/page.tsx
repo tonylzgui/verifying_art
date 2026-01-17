@@ -455,7 +455,6 @@ export default function Page() {
   return (
     <main style={styles.page}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
-        {/* Center title; sign out moved to bottom-right */}
         <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 10px 0", textAlign: "center" }}>
           {TITLE}
         </h1>
@@ -503,7 +502,6 @@ export default function Page() {
                   mid: "5 — Neither poor nor rich",
                   right: "10 — Extremely rich",
                 }}
-                textareaOffsetPx={24}
               />
             </div>
 
@@ -537,10 +535,10 @@ export default function Page() {
                 onClick={signOut}
                 disabled={loading}
                 style={{
-                  padding: "12px 18px", // match Save & Next
-                  fontSize: 16, // match Save & Next
-                  borderRadius: 10, // match Save & Next
-                  border: "1px solid #bbb", // keep secondary style
+                  padding: "12px 18px",
+                  fontSize: 16,
+                  borderRadius: 10,
+                  border: "1px solid #bbb",
                   background: "white",
                   color: "#111",
                   cursor: loading ? "not-allowed" : "pointer",
@@ -565,7 +563,6 @@ function Section({
   setRationale,
   defaultValue,
   labels,
-  textareaOffsetPx = 0,
 }: {
   title: string;
   value: number;
@@ -574,7 +571,6 @@ function Section({
   setRationale: (s: string) => void;
   defaultValue: number; // rationale required when value !== defaultValue
   labels: { left: string; mid: string; right: string };
-  textareaOffsetPx?: number;
 }) {
   const needsWhy = value !== defaultValue;
   const sliderColor = value === defaultValue ? "#2563eb" : "#16a34a";
@@ -608,6 +604,8 @@ function Section({
           fontSize: 12,
           color: "#333",
           opacity: 0.85,
+          minHeight: 44, // reserve space so both columns match even when text wraps
+          alignItems: "flex-start",
         }}
       >
         <div style={{ width: "33%", textAlign: "left" }}>{labels.left}</div>
@@ -615,7 +613,7 @@ function Section({
         <div style={{ width: "33%", textAlign: "right" }}>{labels.right}</div>
       </div>
 
-      <div style={{ marginTop: 12 + textareaOffsetPx }}>
+      <div style={{ marginTop: 12 }}>
         <textarea
           placeholder="Please provide a brief rationale"
           value={rationale}
