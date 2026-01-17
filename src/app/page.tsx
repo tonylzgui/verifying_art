@@ -452,6 +452,19 @@ export default function Page() {
   }
 
   // ---- UI (logged in) ----
+  const bottomBtnBase: React.CSSProperties = {
+    height: 44,
+    minWidth: 140,
+    padding: "12px 18px",
+    fontSize: 16,
+    borderRadius: 10,
+    boxSizing: "border-box",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 500,
+  };
+
   return (
     <main style={styles.page}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -505,7 +518,7 @@ export default function Page() {
               />
             </div>
 
-            {/* Bottom bar: Save left, Sign out right */}
+            {/* Bottom bar: Save left, Sign out right (same size) */}
             <div
               style={{
                 display: "flex",
@@ -519,9 +532,7 @@ export default function Page() {
                 onClick={saveAndNext}
                 disabled={!canSave || loading}
                 style={{
-                  padding: "12px 18px",
-                  fontSize: 16,
-                  borderRadius: 10,
+                  ...bottomBtnBase,
                   border: "1px solid #111",
                   background: canSave ? "#111" : "#cfcfcf",
                   color: "white",
@@ -535,9 +546,7 @@ export default function Page() {
                 onClick={signOut}
                 disabled={loading}
                 style={{
-                  padding: "12px 18px",
-                  fontSize: 16,
-                  borderRadius: 10,
+                  ...bottomBtnBase,
                   border: "1px solid #bbb",
                   background: "white",
                   color: "#111",
@@ -604,10 +613,9 @@ function Section({
           fontSize: 12,
           color: "#333",
           opacity: 0.85,
-          height: 64,            // fixed, same for both cards
-          lineHeight: "16px",    // predictable line height
+          height: 64, // fixed, same for both cards
+          lineHeight: "16px", // predictable line height
           alignItems: "flex-start",
-
         }}
       >
         <div style={{ width: "33%", textAlign: "left" }}>{labels.left}</div>
