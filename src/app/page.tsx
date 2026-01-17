@@ -503,6 +503,7 @@ export default function Page() {
                   mid: "5 — Neither poor nor rich",
                   right: "10 — Extremely rich",
                 }}
+                textareaOffsetPx={24}
               />
             </div>
 
@@ -531,15 +532,15 @@ export default function Page() {
               >
                 Save & Next
               </button>
-              
+
               <button
                 onClick={signOut}
                 disabled={loading}
                 style={{
-                  padding: "12px 18px",      // match Save & Next
-                  fontSize: 16,              // match Save & Next
-                  borderRadius: 10,          // match Save & Next
-                  border: "1px solid #bbb",  // keep secondary style
+                  padding: "12px 18px", // match Save & Next
+                  fontSize: 16, // match Save & Next
+                  borderRadius: 10, // match Save & Next
+                  border: "1px solid #bbb", // keep secondary style
                   background: "white",
                   color: "#111",
                   cursor: loading ? "not-allowed" : "pointer",
@@ -564,6 +565,7 @@ function Section({
   setRationale,
   defaultValue,
   labels,
+  textareaOffsetPx = 0,
 }: {
   title: string;
   value: number;
@@ -572,6 +574,7 @@ function Section({
   setRationale: (s: string) => void;
   defaultValue: number; // rationale required when value !== defaultValue
   labels: { left: string; mid: string; right: string };
+  textareaOffsetPx?: number;
 }) {
   const needsWhy = value !== defaultValue;
   const sliderColor = value === defaultValue ? "#2563eb" : "#16a34a";
@@ -612,7 +615,7 @@ function Section({
         <div style={{ width: "33%", textAlign: "right" }}>{labels.right}</div>
       </div>
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 12 + textareaOffsetPx }}>
         <textarea
           placeholder="Please provide a brief rationale"
           value={rationale}
