@@ -265,7 +265,22 @@ export default function Page() {
 
   async function signOut() {
     setErr(null);
-    await getSupabase().auth.signOut();
+    setLoading(true);
+    try {
+      const { error } = await getSupabase().auth.signOut();
+      if (error) throw error;
+
+      // hard reset local UI so it immediately shows login screen
+      setSession(null);
+      setCurrentPhoto(null);
+      resetInputs();
+      setEmail("");
+      setPassword("");
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
   // ---- NEW core app: load a random eligible photo ----
