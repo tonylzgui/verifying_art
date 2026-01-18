@@ -791,6 +791,7 @@ function Section({
 
       <div style={{ marginTop: 12 }}>
         <textarea
+          placeholder={selected ? "Please provide a brief rationale" : "Select a score first"}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={3}
@@ -808,12 +809,6 @@ function Section({
 
         {needsWhy && rationale.trim().length === 0 && (
           <div style={{ marginTop: 6, fontSize: 12, color: "#16a34a" }}>Required.</div>
-        )}
-
-        {!selected && (
-          <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-            Please move the slider to choose a score (or click 0 / 5 / 10).
-          </div>
         )}
       </div>
     </div>
