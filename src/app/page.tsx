@@ -486,7 +486,8 @@ export default function Page() {
           -webkit-appearance: none;
           appearance: none;
           width: 100%;
-          height: 18px;
+          height: 6px; /* IMPORTANT: don't overlap the labels */
+          display: block;
           background: transparent;
           outline: none;
         }
@@ -511,7 +512,7 @@ export default function Page() {
           border: 2px solid #9ca3af;
           background: white; /* blocks the track behind it */
           cursor: pointer;
-          margin-top: -6px;
+          margin-top: -6px; /* center on 6px track */
         }
         .hollow-range::-moz-range-thumb {
           width: 18px;
@@ -675,21 +676,24 @@ function Section({
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <input
-          type="range"
-          min={0}
-          max={10}
-          step={1}
-          value={visualValue}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className={`hollow-range ${selected ? "selected" : ""}`}
-          style={
-            {
-              width: "100%",
-              ["--thumb-color" as any]: sliderColor,
-            } as React.CSSProperties
-          }
-        />
+        {/* Wrapper provides a larger drag area without overlapping labels */}
+        <div style={{ flex: 1, padding: "8px 0" }}>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={1}
+            value={visualValue}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className={`hollow-range ${selected ? "selected" : ""}`}
+            style={
+              {
+                width: "100%",
+                ["--thumb-color" as any]: sliderColor,
+              } as React.CSSProperties
+            }
+          />
+        </div>
 
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
           {selected ? value : ""}
@@ -699,7 +703,7 @@ function Section({
       <div
         style={{
           position: "relative",
-          zIndex: 2, // ensure clicks go to labels
+          zIndex: 2,
           display: "flex",
           justifyContent: "space-between",
           gap: 10,
