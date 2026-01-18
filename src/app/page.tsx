@@ -27,8 +27,7 @@ export default function Page() {
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
-  // IMPORTANT CHANGE:
-  // Sliders start "unselected" (null). Visually, thumb sits at default position but is hollow and value display is blank
+  // IMPORTANT: sliders start "unselected" (null)
   const [wealth, setWealth] = useState<number | null>(null);
   const [wealthWhy, setWealthWhy] = useState<string>("");
 
@@ -160,7 +159,6 @@ export default function Page() {
   ]);
 
   function resetInputs() {
-    // reset to "unselected" every new photo
     setWealth(null);
     setWealthWhy("");
     setRelevance(null);
@@ -314,8 +312,6 @@ export default function Page() {
   // ---- save score + mark served + next ----
   async function saveAndNext() {
     if (!userId || !currentPhoto) return;
-
-    // must be selected to save (extra guard)
     if (wealth === null || relevance === null) return;
 
     setErr(null);
@@ -489,18 +485,31 @@ export default function Page() {
 
   return (
     <main style={styles.page}>
-      {/* slider styling (thumb hollow when unselected) */}
+      {/* global slider styling */}
       <style jsx global>{`
         .hollow-range {
           -webkit-appearance: none;
           appearance: none;
           width: 100%;
-          height: 6px;
-          border-radius: 999px;
-          background: #d1d5db;
+          height: 18px; /* click/drag target even when invisible */
+          background: transparent;
           outline: none;
         }
 
+        /* TRACK (visible once selected) */
+        .hollow-range::-webkit-slider-runnable-track {
+          height: 6px;
+          border-radius: 999px;
+          background: #d1d5db;
+        }
+
+        .hollow-range::-moz-range-track {
+          height: 6px;
+          border-radius: 999px;
+          background: #d1d5db;
+        }
+
+        /* THUMB (default: hollow) */
         .hollow-range::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
@@ -508,12 +517,9 @@ export default function Page() {
           height: 18px;
           border-radius: 999px;
           border: 2px solid var(--thumb-color, #9ca3af);
-          background: transparent; /* hollow */
+          background: transparent;
           cursor: pointer;
-        }
-
-        .hollow-range.selected::-webkit-slider-thumb {
-          background: var(--thumb-color, #2563eb); /* filled after selection */
+          margin-top: -6px; /* center on 6px track */
         }
 
         .hollow-range::-moz-range-thumb {
@@ -521,19 +527,51 @@ export default function Page() {
           height: 18px;
           border-radius: 999px;
           border: 2px solid var(--thumb-color, #9ca3af);
-          background: transparent; /* hollow */
+          background: transparent;
           cursor: pointer;
         }
 
+        /* Once selected: fill thumb */
+        .hollow-range.selected::-webkit-slider-thumb {
+          background: var(--thumb-color, #2563eb);
+        }
         .hollow-range.selected::-moz-range-thumb {
-          background: var(--thumb-color, #2563eb); /* filled after selection */
+          background: var(--thumb-color, #2563eb);
         }
 
-        /* Firefox track */
-        .hollow-range::-moz-range-track {
-          height: 6px;
-          border-radius: 999px;
-          background: #d1d5db;
+        /* BEFORE selection: hide track + thumb, but keep slider interactive */
+        .hollow-range.unselected::-webkit-slider-runnable-track {
+          background: transparent;
+        }
+        .hollow-range.unselected::-moz-range-track {
+          background: transparent;
+        }
+        .hollow-range.unselected::-webkit-slider-thumb {
+          border-color: transparent;
+          background: transparent;
+        }
+        .hollow-range.unselected::-moz-range-thumb {
+          border-color: transparent;
+          background: transparent;
+        }
+
+        /* Clickable label buttons */
+        .slider-label-btn {
+          appearance: none;
+          border: none;
+          background: transparent;
+          padding: 0;
+          margin: 0;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+          text-align: inherit;
+        }
+
+        .slider-label-btn:focus-visible {
+          outline: 2px solid #111;
+          outline-offset: 3px;
+          border-radius: 6px;
         }
       `}</style>
 
@@ -644,22 +682,20 @@ function Section({
   labels,
 }: {
   title: string;
-  value: number | null; // IMPORTANT CHANGE
+  value: number | null;
   onChange: (v: number | null) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  defaultValue: number; // thumb sits here until selected
+  defaultValue: number; // thumb sits here until selected (but hidden)
   labels: { left: string; mid: string; right: string };
 }) {
   const selected = value !== null;
 
-  // We must always provide a numeric value to <input type="range">.
-  // If unselected, we render the thumb at defaultValue but keep the display blank + thumb hollow.
+  // Range must have a number. When unselected we keep it at defaultValue (but hide track+thumb).
   const visualValue = selected ? value : defaultValue;
 
   const needsWhy = selected && value !== defaultValue;
 
-  // slider color logic
   const sliderColor = !selected ? "#9ca3af" : value === defaultValue ? "#2563eb" : "#16a34a";
 
   return (
@@ -673,24 +709,22 @@ function Section({
           max={10}
           step={1}
           value={visualValue}
-          onChange={(e) => onChange(Number(e.target.value))} // selecting any value marks it as "selected"
-          className={`hollow-range ${selected ? "selected" : ""}`}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className={`hollow-range ${selected ? "selected" : "unselected"}`}
           style={
             {
               width: "100%",
-              // CSS variable consumed by thumb styling above
               ["--thumb-color" as any]: sliderColor,
             } as React.CSSProperties
           }
         />
 
-        {/* IMPORTANT CHANGE: show blank until selected */}
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
           {selected ? value : ""}
         </div>
       </div>
 
-      {/* Labels for 0 / 5 / 10 */}
+      {/* Labels row — clickable to select 0 / 5 / 10 */}
       <div
         style={{
           display: "flex",
@@ -700,14 +734,37 @@ function Section({
           fontSize: 12,
           color: "#333",
           opacity: 0.85,
-          height: 64, // fixed, same for both cards
-          lineHeight: "16px", // predictable line height
+          height: 64,
+          lineHeight: "16px",
           alignItems: "flex-start",
         }}
       >
-        <div style={{ width: "33%", textAlign: "left" }}>{labels.left}</div>
-        <div style={{ width: "34%", textAlign: "center" }}>{labels.mid}</div>
-        <div style={{ width: "33%", textAlign: "right" }}>{labels.right}</div>
+        <button
+          type="button"
+          className="slider-label-btn"
+          onClick={() => onChange(0)}
+          style={{ width: "33%", textAlign: "left" }}
+        >
+          {labels.left}
+        </button>
+
+        <button
+          type="button"
+          className="slider-label-btn"
+          onClick={() => onChange(5)}
+          style={{ width: "34%", textAlign: "center" }}
+        >
+          {labels.mid}
+        </button>
+
+        <button
+          type="button"
+          className="slider-label-btn"
+          onClick={() => onChange(10)}
+          style={{ width: "33%", textAlign: "right" }}
+        >
+          {labels.right}
+        </button>
       </div>
 
       <div style={{ marginTop: 12 }}>
@@ -734,7 +791,7 @@ function Section({
 
         {!selected && (
           <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-            Please move the slider to choose a score.
+            Please move the slider to choose a score (or click 0 / 5 / 10).
           </div>
         )}
       </div>
