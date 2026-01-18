@@ -539,19 +539,20 @@ export default function Page() {
           background: var(--thumb-color, #2563eb);
         }
 
-        /* BEFORE selection: hide track + thumb, but keep slider interactive */
+        /* BEFORE selection: show a neutral line + hollow thumb */
         .hollow-range.unselected::-webkit-slider-runnable-track {
-          background: transparent;
+          background: #d1d5db; /* light grey line */
         }
         .hollow-range.unselected::-moz-range-track {
-          background: transparent;
+          background: #d1d5db; /* light grey line */
         }
+
         .hollow-range.unselected::-webkit-slider-thumb {
-          border-color: transparent;
+          border-color: #9ca3af;  /* hollow circle visible */
           background: transparent;
         }
         .hollow-range.unselected::-moz-range-thumb {
-          border-color: transparent;
+          border-color: #9ca3af;  /* hollow circle visible */
           background: transparent;
         }
 
