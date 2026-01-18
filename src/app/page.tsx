@@ -27,7 +27,7 @@ export default function Page() {
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
-  // IMPORTANT: sliders start "unselected" (null)
+  // Sliders start "unselected" (null)
   const [wealth, setWealth] = useState<number | null>(null);
   const [wealthWhy, setWealthWhy] = useState<string>("");
 
@@ -45,7 +45,7 @@ export default function Page() {
       background: "#f6f7f9",
       color: "#111",
       fontFamily: "system-ui",
-      colorScheme: "light" as const, // force light rendering for form controls
+      colorScheme: "light" as const,
     },
     card: {
       border: "1px solid #ddd",
@@ -105,7 +105,6 @@ export default function Page() {
   }, []);
 
   // Detect Supabase recovery links (e.g. /#access_token=...&type=recovery)
-  // When present, show reset UI instead of the app (even if Supabase "logs them in").
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
@@ -140,12 +139,12 @@ export default function Page() {
     if (!userId) return false;
     if (!currentPhoto) return false;
 
-    // must manually select both sliders
     if (!wealthSelected) return false;
     if (!relevanceSelected) return false;
 
     if (wealthNeedsWhy && wealthWhy.trim().length === 0) return false;
     if (relevanceNeedsWhy && relevanceWhy.trim().length === 0) return false;
+
     return true;
   }, [
     userId,
@@ -216,7 +215,6 @@ export default function Page() {
 
     setLoading(true);
     try {
-      // Send them back to this page; we detect the recovery hash and show reset UI.
       const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
         redirectTo: window.location.origin,
       });
@@ -247,11 +245,9 @@ export default function Page() {
         return;
       }
 
-      // IMPORTANT: sign out so the recovery link doesn't "log them into the app"
       await getSupabase().auth.signOut();
       setSession(null);
 
-      // clear hash + exit reset mode
       window.history.replaceState({}, "", window.location.pathname);
       setResetMode(false);
       setNewPassword("");
@@ -413,7 +409,6 @@ export default function Page() {
   if (!session) {
     return (
       <main style={styles.page}>
-        {/* Make title width match the login card */}
         <div style={{ maxWidth: 520, margin: "0 auto" }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 18px 0", textAlign: "center" }}>
             {TITLE}
@@ -472,7 +467,7 @@ export default function Page() {
   // ---- UI (logged in) ----
   const bottomBtnBase: React.CSSProperties = {
     height: 44,
-    minWidth: 150, // ensure identical width
+    minWidth: 150,
     padding: "0 18px",
     fontSize: 16,
     borderRadius: 10,
@@ -485,78 +480,57 @@ export default function Page() {
 
   return (
     <main style={styles.page}>
-      {/* global slider styling */}
+      {/* global slider styling + clickable label styling */}
       <style jsx global>{`
         .hollow-range {
           -webkit-appearance: none;
           appearance: none;
           width: 100%;
-          height: 18px; /* click/drag target even when invisible */
+          height: 18px;
           background: transparent;
           outline: none;
         }
 
-        /* TRACK (visible once selected) */
         .hollow-range::-webkit-slider-runnable-track {
           height: 6px;
           border-radius: 999px;
           background: #d1d5db;
         }
-
         .hollow-range::-moz-range-track {
           height: 6px;
           border-radius: 999px;
           background: #d1d5db;
         }
 
-        /* THUMB (default: hollow) */
         .hollow-range::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
           width: 18px;
           height: 18px;
           border-radius: 999px;
-          border: 2px solid var(--thumb-color, #9ca3af);
-          background: transparent;
+          border: 2px solid #9ca3af;
+          background: white; /* blocks the track behind it */
           cursor: pointer;
-          margin-top: -6px; /* center on 6px track */
+          margin-top: -6px;
         }
-
         .hollow-range::-moz-range-thumb {
           width: 18px;
           height: 18px;
           border-radius: 999px;
-          border: 2px solid var(--thumb-color, #9ca3af);
-          background: transparent;
+          border: 2px solid #9ca3af;
+          background: white; /* blocks the track behind it */
           cursor: pointer;
         }
 
-        /* Once selected: fill thumb */
         .hollow-range.selected::-webkit-slider-thumb {
+          border-color: var(--thumb-color, #2563eb);
           background: var(--thumb-color, #2563eb);
         }
         .hollow-range.selected::-moz-range-thumb {
+          border-color: var(--thumb-color, #2563eb);
           background: var(--thumb-color, #2563eb);
         }
 
-        /* BEFORE selection: show a neutral line + hollow thumb */
-        .hollow-range.unselected::-webkit-slider-runnable-track {
-          background: #d1d5db; /* light grey line */
-        }
-        .hollow-range.unselected::-moz-range-track {
-          background: #d1d5db; /* light grey line */
-        }
-
-        .hollow-range.unselected::-webkit-slider-thumb {
-          border-color: #9ca3af;  /* hollow circle visible */
-          background: transparent;
-        }
-        .hollow-range.unselected::-moz-range-thumb {
-          border-color: #9ca3af;  /* hollow circle visible */
-          background: transparent;
-        }
-
-        /* Clickable label buttons */
         .slider-label-btn {
           appearance: none;
           border: none;
@@ -567,6 +541,8 @@ export default function Page() {
           font: inherit;
           cursor: pointer;
           text-align: inherit;
+          display: block;
+          width: 100%;
         }
 
         .slider-label-btn:focus-visible {
@@ -596,7 +572,6 @@ export default function Page() {
               />
             </div>
 
-            {/* Relevant LEFT, Wealth RIGHT */}
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
               <Section
                 title="Relevant score"
@@ -604,7 +579,7 @@ export default function Page() {
                 onChange={setRelevance}
                 rationale={relevanceWhy}
                 setRationale={setRelevanceWhy}
-                defaultValue={0} // thumb sits here until selected
+                defaultValue={0}
                 labels={{
                   left: "0 — Not representative",
                   mid: "5 — Neither representative nor unrepresentative",
@@ -618,7 +593,7 @@ export default function Page() {
                 onChange={setWealth}
                 rationale={wealthWhy}
                 setRationale={setWealthWhy}
-                defaultValue={5} // thumb sits here until selected
+                defaultValue={5}
                 labels={{
                   left: "0 — Extremely poor",
                   mid: "5 — Neither poor nor rich",
@@ -627,7 +602,6 @@ export default function Page() {
               />
             </div>
 
-            {/* Bottom bar: Save left, Sign out right (same size) */}
             <div
               style={{
                 display: "flex",
@@ -687,16 +661,13 @@ function Section({
   onChange: (v: number | null) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  defaultValue: number; // thumb sits here until selected (but hidden)
+  defaultValue: number;
   labels: { left: string; mid: string; right: string };
 }) {
   const selected = value !== null;
-
-  // Range must have a number. When unselected we keep it at defaultValue (but hide track+thumb).
   const visualValue = selected ? value : defaultValue;
 
   const needsWhy = selected && value !== defaultValue;
-
   const sliderColor = !selected ? "#9ca3af" : value === defaultValue ? "#2563eb" : "#16a34a";
 
   return (
@@ -711,7 +682,7 @@ function Section({
           step={1}
           value={visualValue}
           onChange={(e) => onChange(Number(e.target.value))}
-          className={`hollow-range ${selected ? "selected" : "unselected"}`}
+          className={`hollow-range ${selected ? "selected" : ""}`}
           style={
             {
               width: "100%",
@@ -725,9 +696,10 @@ function Section({
         </div>
       </div>
 
-      {/* Labels row — clickable to select 0 / 5 / 10 */}
       <div
         style={{
+          position: "relative",
+          zIndex: 2, // ensure clicks go to labels
           display: "flex",
           justifyContent: "space-between",
           gap: 10,
@@ -740,32 +712,23 @@ function Section({
           alignItems: "flex-start",
         }}
       >
-        <button
-          type="button"
-          className="slider-label-btn"
-          onClick={() => onChange(0)}
-          style={{ width: "33%", textAlign: "left" }}
-        >
-          {labels.left}
-        </button>
+        <div style={{ width: "33%", textAlign: "left" }}>
+          <button type="button" className="slider-label-btn" onClick={() => onChange(0)}>
+            {labels.left}
+          </button>
+        </div>
 
-        <button
-          type="button"
-          className="slider-label-btn"
-          onClick={() => onChange(5)}
-          style={{ width: "34%", textAlign: "center" }}
-        >
-          {labels.mid}
-        </button>
+        <div style={{ width: "34%", textAlign: "center" }}>
+          <button type="button" className="slider-label-btn" onClick={() => onChange(5)}>
+            {labels.mid}
+          </button>
+        </div>
 
-        <button
-          type="button"
-          className="slider-label-btn"
-          onClick={() => onChange(10)}
-          style={{ width: "33%", textAlign: "right" }}
-        >
-          {labels.right}
-        </button>
+        <div style={{ width: "33%", textAlign: "right" }}>
+          <button type="button" className="slider-label-btn" onClick={() => onChange(10)}>
+            {labels.right}
+          </button>
+        </div>
       </div>
 
       <div style={{ marginTop: 12 }}>
