@@ -744,9 +744,16 @@ function Section({
             } as React.CSSProperties
           }
         />
-
-        <div style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
-          {selected ? value : ""}
+        <div
+          style={{
+            textAlign: "right",
+            fontVariantNumeric: "tabular-nums",
+            color: "#111",
+            minHeight: 20,
+            lineHeight: "20px",
+          }}
+        >
+          {selected ? value : "\u00A0"}
         </div>
 
         <div style={{ height: 22 }} />
