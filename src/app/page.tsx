@@ -396,7 +396,6 @@ export default function Page() {
   if (!session) {
     return (
       <main style={styles.page}>
-        {/* Make title width match the login card */}
         <div style={{ maxWidth: 520, margin: "0 auto" }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 18px 0", textAlign: "center" }}>
             {TITLE}
@@ -479,7 +478,6 @@ export default function Page() {
           outline: none;
         }
 
-        /* Default track (unselected): all grey */
         .hollow-range::-webkit-slider-runnable-track {
           height: 6px;
           border-radius: 999px;
@@ -491,7 +489,6 @@ export default function Page() {
           background: #d1d5db;
         }
 
-        /* Selected: gradient fill up to thumb */
         .hollow-range.selected::-webkit-slider-runnable-track {
           background: linear-gradient(
             to right,
@@ -552,6 +549,7 @@ export default function Page() {
           text-align: inherit;
           display: block;
           width: 100%;
+          white-space: normal;
         }
         .slider-label-btn:focus-visible {
           outline: 2px solid #111;
@@ -559,29 +557,29 @@ export default function Page() {
           border-radius: 6px;
         }
 
-        /* ---------- MOBILE FIXES ---------- */
+        /* ✅ KEY FIX: Reserve label-row height so textareas always align */
+        .slider-labels {
+          min-height: 96px;
+        }
+
         @media (max-width: 720px) {
-          /* Stack the two slider cards */
           .sections-grid {
             grid-template-columns: 1fr !important;
           }
 
-          /* Let label row wrap instead of overlapping */
           .slider-labels {
             flex-wrap: wrap;
             gap: 6px;
+            min-height: 0 !important; /* don't waste space on mobile */
           }
 
-          /* Make each label take the full width on mobile */
           .slider-label {
             width: 100% !important;
             text-align: left !important;
           }
 
-          /* Slightly tighten label button spacing + allow wrapping */
           .slider-label-btn {
             padding: 4px 0;
-            white-space: normal;
           }
         }
       `}</style>
@@ -765,7 +763,6 @@ function Section({
             opacity: 0.85,
             lineHeight: "16px",
             alignItems: "flex-start",
-            minHeight: 48,
           }}
         >
           <div className="slider-label slider-label-left" style={{ width: "33%", textAlign: "left" }}>
@@ -808,6 +805,7 @@ function Section({
           disabled={!selected}
         />
 
+        {/* Reserve space so this line never shifts the layout */}
         <div style={{ marginTop: 6, minHeight: 16, fontSize: 12, color: "#16a34a" }}>
           {needsWhy && rationale.trim().length === 0 ? "Required." : ""}
         </div>
