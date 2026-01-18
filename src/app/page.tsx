@@ -765,6 +765,7 @@ function Section({
             opacity: 0.85,
             lineHeight: "16px",
             alignItems: "flex-start",
+            minHeight: 48,
           }}
         >
           <div className="slider-label slider-label-left" style={{ width: "33%", textAlign: "left" }}>
@@ -807,9 +808,9 @@ function Section({
           disabled={!selected}
         />
 
-        {needsWhy && rationale.trim().length === 0 && (
-          <div style={{ marginTop: 6, fontSize: 12, color: "#16a34a" }}>Required.</div>
-        )}
+        <div style={{ marginTop: 6, minHeight: 16, fontSize: 12, color: "#16a34a" }}>
+          {needsWhy && rationale.trim().length === 0 ? "Required." : ""}
+        </div>
       </div>
     </div>
   );
