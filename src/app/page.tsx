@@ -139,6 +139,7 @@ export default function Page() {
     if (!userId) return false;
     if (!currentPhoto) return false;
 
+    // must manually select both sliders
     if (!wealthSelected) return false;
     if (!relevanceSelected) return false;
 
@@ -480,7 +481,6 @@ export default function Page() {
 
   return (
     <main style={styles.page}>
-      {/* Slider CSS */}
       <style jsx global>{`
         .hollow-range {
           -webkit-appearance: none;
@@ -536,7 +536,7 @@ export default function Page() {
           appearance: none;
           border: none;
           background: transparent;
-          padding: 0;
+          padding: 6px 0; /* bigger click target */
           margin: 0;
           color: inherit;
           font: inherit;
@@ -674,57 +674,43 @@ function Section({
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
-      {/* SLIDER ROW (explicit zIndex layer) */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 18, // IMPORTANT: creates real space so slider can't overlap labels
-        }}
-      >
-        {/* Big drag target ABOVE labels, but does not overlap due to marginBottom */}
-        <div style={{ flex: 1, padding: "10px 0" }}>
-          <input
-            type="range"
-            min={0}
-            max={10}
-            step={1}
-            value={visualValue}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className={`hollow-range ${selected ? "selected" : ""}`}
-            style={
-              {
-                width: "100%",
-                ["--thumb-color" as any]: sliderColor,
-              } as React.CSSProperties
-            }
-          />
-        </div>
+      {/* Slider row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <input
+          type="range"
+          min={0}
+          max={10}
+          step={1}
+          value={visualValue}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className={`hollow-range ${selected ? "selected" : ""}`}
+          style={
+            {
+              ["--thumb-color" as any]: sliderColor,
+            } as React.CSSProperties
+          }
+        />
 
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
           {selected ? value : ""}
         </div>
       </div>
 
-      {/* LABEL ROW (higher zIndex layer) */}
+      {/* IMPORTANT: hard spacer so label clicks cannot be intercepted by the native range hitbox */}
+      <div style={{ height: 22 }} />
+
+      {/* Labels row (now safely far below slider) */}
       <div
         style={{
-          position: "relative",
-          zIndex: 10, // ensure labels win even if any overlap exists
           display: "flex",
           justifyContent: "space-between",
           gap: 10,
-          marginTop: -8, // brings labels closer visually WITHOUT allowing overlap clicks
           fontSize: 12,
           color: "#333",
           opacity: 0.85,
           height: 64,
           lineHeight: "16px",
           alignItems: "flex-start",
-          pointerEvents: "auto",
         }}
       >
         <div style={{ width: "33%", textAlign: "left" }}>
