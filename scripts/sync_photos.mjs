@@ -6,8 +6,11 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const bucket = process.env.SUPABASE_BUCKET;
+const ROOT_FOLDER = process.env.SUPABASE_FOLDER || "";
 
-if (!url || !key || !bucket) throw new Error("Missing env vars in .env.sync");
+if (!url || !key || !bucket) {
+  throw new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_BUCKET in .env.sync");
+}
 
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
@@ -24,25 +27,28 @@ async function listFolder(prefix = "") {
       offset,
       sortBy: { column: "name", order: "asc" },
     });
+
     if (error) throw error;
     if (!data || data.length === 0) break;
 
     for (const item of data) {
-      const name = item.name;
+      const name = item?.name;
       if (!name) continue;
 
-      // If it has no metadata, it's usually a "folder"
+      // In Supabase storage list(), "folders" usually have null metadata
       const isFolder = !item.metadata;
 
       if (isFolder) {
         const childPrefix = prefix ? `${prefix}/${name}` : name;
-        const child = await listFolder(childPrefix);
-        out.push(...child);
-      } else {
-        const lower = name.toLowerCase();
-        const isImage = [...exts].some((e) => lower.endsWith(e));
-        if (isImage) {
+        out.push(...(await listFolder(childPrefix)));
+        continue;
+      }
+
+      const lower = name.toLowerCase();
+      for (const ext of exts) {
+        if (lower.endsWith(ext)) {
           out.push(prefix ? `${prefix}/${name}` : name);
+          break;
         }
       }
     }
@@ -54,15 +60,15 @@ async function listFolder(prefix = "") {
   return out;
 }
 
-async function upsert(paths) {
+async function upsertPaths(paths) {
   const chunkSize = 500;
+
   for (let i = 0; i < paths.length; i += chunkSize) {
     const chunk = paths.slice(i, i + chunkSize).map((p) => ({
       storage_path: p,
-      is_anchor: false,
-      anchor_order: null,
     }));
 
+    // NOTE: this requires a UNIQUE constraint/index on photos.storage_path
     const { error } = await supabase.from("photos").upsert(chunk, { onConflict: "storage_path" });
     if (error) throw error;
 
@@ -70,9 +76,10 @@ async function upsert(paths) {
   }
 }
 
-const ROOT_FOLDER = process.env.SUPABASE_FOLDER || "";
-
 const paths = await listFolder(ROOT_FOLDER);
-console.log(`Found ${paths.length} images in bucket ${bucket} under ${ROOT_FOLDER}`);
-await upsert(paths);
+console.log(
+  `Found ${paths.length} images in bucket ${bucket} under ${ROOT_FOLDER ? ROOT_FOLDER : "(root)"}`
+);
+
+await upsertPaths(paths);
 console.log("Done.");
