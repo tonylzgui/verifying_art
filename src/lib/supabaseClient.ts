@@ -11,7 +11,6 @@ function assertEnv() {
   }
 }
 
-// Make TS happy for global cache
 declare global {
   // eslint-disable-next-line no-var
   var __supabaseClient: SupabaseClient | undefined;
@@ -20,35 +19,28 @@ declare global {
 export function getSupabase(): SupabaseClient {
   assertEnv();
 
-  // Server: create a fresh client (don’t cache across requests)
   if (typeof window === "undefined") {
     return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
   }
 
-  // Browser: cache on globalThis so even duplicate bundles share ONE client
   if (globalThis.__supabaseClient) return globalThis.__supabaseClient;
 
   globalThis.__supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
+      flowType: "pkce",
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storage: window.localStorage, // explicit
+      storage: window.localStorage,
+      storageKey: "sb-auth-token", // stable key (not required, but helps debugging)
     },
   });
 
   return globalThis.__supabaseClient;
 }
 
-/**
- * Build-safe public URL generator (does NOT call supabase-js).
- */
 export function publicUrl(path: string): string {
   if (!SUPABASE_URL) return "";
   const cleanBase = SUPABASE_URL.replace(/\/+$/, "");
