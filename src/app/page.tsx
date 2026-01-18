@@ -268,40 +268,30 @@ export default function Page() {
     await getSupabase().auth.signOut();
   }
 
-  // ---- core app: load next photo for this user ----
+  // ---- NEW core app: load a random eligible photo ----
+  // Eligibility:
+  //  - user has not rated it
+  //  - total ratings for photo < 20 (otherwise "retired")
   async function loadNextPhoto() {
-    await getSupabase().rpc("ensure_queue", { anchor_n: 20 });
     if (!userId) return;
 
     setErr(null);
     setLoading(true);
     try {
-      const { data: q, error: qErr } = await getSupabase()
-        .from("photo_queue")
-        .select("photo_id, order_index")
-        .eq("user_id", userId)
-        .eq("served", false)
-        .order("order_index", { ascending: true })
-        .limit(1);
+      const { data, error } = await getSupabase().rpc("get_random_photo_to_rate", {
+        p_user_id: userId,
+      });
 
-      if (qErr) throw qErr;
+      if (error) throw error;
 
-      if (!q || q.length === 0) {
+      const row = Array.isArray(data) ? data[0] : data;
+
+      if (!row) {
         setCurrentPhoto(null);
         return;
       }
 
-      const photoId = q[0].photo_id as string;
-
-      const { data: p, error: pErr } = await getSupabase()
-        .from("photos")
-        .select("id, storage_path")
-        .eq("id", photoId)
-        .single();
-
-      if (pErr) throw pErr;
-
-      setCurrentPhoto(p as PhotoRow);
+      setCurrentPhoto(row as PhotoRow);
       resetInputs();
     } catch (e: any) {
       setErr(e?.message ?? String(e));
@@ -310,7 +300,7 @@ export default function Page() {
     }
   }
 
-  // ---- save score + mark served + next ----
+  // ---- save score + next ----
   async function saveAndNext() {
     if (!userId || !currentPhoto) return;
     if (wealth === null || relevance === null) return;
@@ -333,14 +323,6 @@ export default function Page() {
         .upsert(payload, { onConflict: "user_id,photo_id" });
 
       if (upErr) throw upErr;
-
-      const { error: servedErr } = await getSupabase()
-        .from("photo_queue")
-        .update({ served: true, served_at: new Date().toISOString() })
-        .eq("user_id", userId)
-        .eq("photo_id", currentPhoto.id);
-
-      if (servedErr) throw servedErr;
 
       await loadNextPhoto();
     } catch (e: any) {
@@ -707,7 +689,6 @@ function Section({
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
-      {/* NEW: grid so slider + labels share the same width (no misalignment at 5) */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 28px", columnGap: 12, alignItems: "center" }}>
         <input
           type="range"
