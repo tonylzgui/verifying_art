@@ -5,15 +5,23 @@ export const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
 export const SUPABASE_ANON_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 export const BUCKET = (process.env.NEXT_PUBLIC_SUPABASE_BUCKET ?? "art_photos").trim();
 
-// ✅ Singleton client (one instance for the whole browser session)
-let _client: SupabaseClient | null = null;
+function assertEnv() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+}
+
+// Make TS happy for global cache
+declare global {
+  // eslint-disable-next-line no-var
+  var __supabaseClient: SupabaseClient | undefined;
+}
 
 export function getSupabase(): SupabaseClient {
-  // If we're on the server, always create a fresh client (avoids leaking across requests)
+  assertEnv();
+
+  // Server: create a fresh client (don’t cache across requests)
   if (typeof window === "undefined") {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
-    }
     return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
@@ -23,27 +31,23 @@ export function getSupabase(): SupabaseClient {
     });
   }
 
-  // Browser: reuse the same instance forever
-  if (_client) return _client;
+  // Browser: cache on globalThis so even duplicate bundles share ONE client
+  if (globalThis.__supabaseClient) return globalThis.__supabaseClient;
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  }
-
-  _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  globalThis.__supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
-      persistSession: true,        // store session in storage
-      autoRefreshToken: true,      // keep tokens fresh
-      detectSessionInUrl: true,    // supports magic links / recovery links
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage, // explicit
     },
   });
 
-  return _client;
+  return globalThis.__supabaseClient;
 }
 
 /**
  * Build-safe public URL generator (does NOT call supabase-js).
- * This avoids build-time crashes if Next evaluates things during prerender.
  */
 export function publicUrl(path: string): string {
   if (!SUPABASE_URL) return "";
