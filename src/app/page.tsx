@@ -105,6 +105,7 @@ export default function Page() {
   }, []);
 
   // Detect Supabase recovery links (e.g. /#access_token=...&type=recovery)
+  // When present, show reset UI instead of the app (even if Supabase "logs them in").
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
@@ -216,6 +217,7 @@ export default function Page() {
 
     setLoading(true);
     try {
+      // Send them back to this page; we detect the recovery hash and show reset UI.
       const { error } = await getSupabase().auth.resetPasswordForEmail(em, {
         redirectTo: window.location.origin,
       });
@@ -246,9 +248,11 @@ export default function Page() {
         return;
       }
 
+      // IMPORTANT: sign out so the recovery link doesn't "log them into the app"
       await getSupabase().auth.signOut();
       setSession(null);
 
+      // clear hash + exit reset mode
       window.history.replaceState({}, "", window.location.pathname);
       setResetMode(false);
       setNewPassword("");
@@ -410,6 +414,7 @@ export default function Page() {
   if (!session) {
     return (
       <main style={styles.page}>
+        {/* Make title width match the login card */}
         <div style={{ maxWidth: 520, margin: "0 auto" }}>
           <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 18px 0", textAlign: "center" }}>
             {TITLE}
@@ -691,7 +696,6 @@ function Section({
   const needsWhy = selected && value !== defaultValue;
   const sliderColor = !selected ? "#9ca3af" : value === defaultValue ? "#2563eb" : "#16a34a";
 
-  // NEW: fill percent for gradient track (0..10 -> 0..100%)
   const pct = `${(visualValue / 10) * 100}%`;
 
   // Clicking thumb/track while unselected should select default
@@ -703,7 +707,8 @@ function Section({
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* NEW: grid so slider + labels share the same width (no misalignment at 5) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 28px", columnGap: 12, alignItems: "center" }}>
         <input
           type="range"
           min={0}
@@ -727,43 +732,46 @@ function Section({
           }
         />
 
-        <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
+        <div style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
           {selected ? value : ""}
         </div>
-      </div>
 
-      <div style={{ height: 22 }} />
+        <div style={{ height: 22 }} />
+        <div />
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 10,
-          fontSize: 12,
-          color: "#333",
-          opacity: 0.85,
-          height: 64,
-          lineHeight: "16px",
-          alignItems: "flex-start",
-        }}
-      >
-        <div style={{ width: "33%", textAlign: "left" }}>
-          <button type="button" className="slider-label-btn" onClick={() => onChange(0)}>
-            {labels.left}
-          </button>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            fontSize: 12,
+            color: "#333",
+            opacity: 0.85,
+            height: 64,
+            lineHeight: "16px",
+            alignItems: "flex-start",
+          }}
+        >
+          <div style={{ width: "33%", textAlign: "left" }}>
+            <button type="button" className="slider-label-btn" onClick={() => onChange(0)}>
+              {labels.left}
+            </button>
+          </div>
+
+          <div style={{ width: "34%", textAlign: "center" }}>
+            <button type="button" className="slider-label-btn" onClick={() => onChange(5)}>
+              {labels.mid}
+            </button>
+          </div>
+
+          <div style={{ width: "33%", textAlign: "right" }}>
+            <button type="button" className="slider-label-btn" onClick={() => onChange(10)}>
+              {labels.right}
+            </button>
+          </div>
         </div>
 
-        <div style={{ width: "34%", textAlign: "center" }}>
-          <button type="button" className="slider-label-btn" onClick={() => onChange(5)}>
-            {labels.mid}
-          </button>
-        </div>
-
-        <div style={{ width: "33%", textAlign: "right" }}>
-          <button type="button" className="slider-label-btn" onClick={() => onChange(10)}>
-            {labels.right}
-          </button>
-        </div>
+        <div />
       </div>
 
       <div style={{ marginTop: 12 }}>
