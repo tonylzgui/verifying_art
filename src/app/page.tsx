@@ -536,7 +536,7 @@ export default function Page() {
           appearance: none;
           border: none;
           background: transparent;
-          padding: 6px 0; /* bigger click target */
+          padding: 6px 0;
           margin: 0;
           color: inherit;
           font: inherit;
@@ -670,6 +670,11 @@ function Section({
   const needsWhy = selected && value !== defaultValue;
   const sliderColor = !selected ? "#9ca3af" : value === defaultValue ? "#2563eb" : "#16a34a";
 
+  // NEW: if unselected, clicking the thumb/track should "select" the default value immediately
+  const ensureSelected = () => {
+    if (value === null) onChange(defaultValue);
+  };
+
   return (
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
@@ -683,6 +688,13 @@ function Section({
           step={1}
           value={visualValue}
           onChange={(e) => onChange(Number(e.target.value))}
+          // NEW: dot (thumb) click now counts as selecting, even if value doesn't change
+          onPointerDown={ensureSelected}
+          onMouseDown={ensureSelected}
+          onTouchStart={ensureSelected}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") ensureSelected();
+          }}
           className={`hollow-range ${selected ? "selected" : ""}`}
           style={
             {
@@ -696,10 +708,10 @@ function Section({
         </div>
       </div>
 
-      {/* IMPORTANT: hard spacer so label clicks cannot be intercepted by the native range hitbox */}
+      {/* Spacer so label clicks are safe */}
       <div style={{ height: 22 }} />
 
-      {/* Labels row (now safely far below slider) */}
+      {/* Labels row (text click already works) */}
       <div
         style={{
           display: "flex",
