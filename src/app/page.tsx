@@ -27,12 +27,12 @@ export default function Page() {
 
   const [currentPhoto, setCurrentPhoto] = useState<PhotoRow | null>(null);
 
-  // Wealth defaults to 5 (neutral)
-  const [wealth, setWealth] = useState<number>(5);
+  // IMPORTANT CHANGE:
+  // Sliders start "unselected" (null). Visually, thumb sits at default position but is hollow and value display is blank
+  const [wealth, setWealth] = useState<number | null>(null);
   const [wealthWhy, setWealthWhy] = useState<string>("");
 
-  // Relevance defaults to 0 (not representative)
-  const [relevance, setRelevance] = useState<number>(0);
+  const [relevance, setRelevance] = useState<number | null>(null);
   const [relevanceWhy, setRelevanceWhy] = useState<string>("");
 
   const userId = session?.user?.id as string | undefined;
@@ -131,21 +131,39 @@ export default function Page() {
   }, [session?.user?.id, resetMode]);
 
   // ---- helpers ----
-  const wealthNeedsWhy = wealth !== 5;
-  const relevanceNeedsWhy = relevance !== 0;
+  const wealthSelected = wealth !== null;
+  const relevanceSelected = relevance !== null;
+
+  const wealthNeedsWhy = wealthSelected && wealth !== 5;
+  const relevanceNeedsWhy = relevanceSelected && relevance !== 0;
 
   const canSave = useMemo(() => {
     if (!userId) return false;
     if (!currentPhoto) return false;
+
+    // must manually select both sliders
+    if (!wealthSelected) return false;
+    if (!relevanceSelected) return false;
+
     if (wealthNeedsWhy && wealthWhy.trim().length === 0) return false;
     if (relevanceNeedsWhy && relevanceWhy.trim().length === 0) return false;
     return true;
-  }, [userId, currentPhoto, wealthNeedsWhy, wealthWhy, relevanceNeedsWhy, relevanceWhy]);
+  }, [
+    userId,
+    currentPhoto,
+    wealthSelected,
+    relevanceSelected,
+    wealthNeedsWhy,
+    wealthWhy,
+    relevanceNeedsWhy,
+    relevanceWhy,
+  ]);
 
   function resetInputs() {
-    setWealth(5);
+    // reset to "unselected" every new photo
+    setWealth(null);
     setWealthWhy("");
-    setRelevance(0);
+    setRelevance(null);
     setRelevanceWhy("");
   }
 
@@ -296,6 +314,10 @@ export default function Page() {
   // ---- save score + mark served + next ----
   async function saveAndNext() {
     if (!userId || !currentPhoto) return;
+
+    // must be selected to save (extra guard)
+    if (wealth === null || relevance === null) return;
+
     setErr(null);
     setLoading(true);
 
@@ -454,7 +476,7 @@ export default function Page() {
   // ---- UI (logged in) ----
   const bottomBtnBase: React.CSSProperties = {
     height: 44,
-    minWidth: 150, // <-- bump to ensure identical width
+    minWidth: 150, // ensure identical width
     padding: "0 18px",
     fontSize: 16,
     borderRadius: 10,
@@ -467,6 +489,54 @@ export default function Page() {
 
   return (
     <main style={styles.page}>
+      {/* slider styling (thumb hollow when unselected) */}
+      <style jsx global>{`
+        .hollow-range {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 6px;
+          border-radius: 999px;
+          background: #d1d5db;
+          outline: none;
+        }
+
+        .hollow-range::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          border: 2px solid var(--thumb-color, #9ca3af);
+          background: transparent; /* hollow */
+          cursor: pointer;
+        }
+
+        .hollow-range.selected::-webkit-slider-thumb {
+          background: var(--thumb-color, #2563eb); /* filled after selection */
+        }
+
+        .hollow-range::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          border: 2px solid var(--thumb-color, #9ca3af);
+          background: transparent; /* hollow */
+          cursor: pointer;
+        }
+
+        .hollow-range.selected::-moz-range-thumb {
+          background: var(--thumb-color, #2563eb); /* filled after selection */
+        }
+
+        /* Firefox track */
+        .hollow-range::-moz-range-track {
+          height: 6px;
+          border-radius: 999px;
+          background: #d1d5db;
+        }
+      `}</style>
+
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "0 0 10px 0", textAlign: "center" }}>
           {TITLE}
@@ -495,7 +565,7 @@ export default function Page() {
                 onChange={setRelevance}
                 rationale={relevanceWhy}
                 setRationale={setRelevanceWhy}
-                defaultValue={0}
+                defaultValue={0} // thumb sits here until selected
                 labels={{
                   left: "0 — Not representative",
                   mid: "5 — Neither representative nor unrepresentative",
@@ -509,7 +579,7 @@ export default function Page() {
                 onChange={setWealth}
                 rationale={wealthWhy}
                 setRationale={setWealthWhy}
-                defaultValue={5}
+                defaultValue={5} // thumb sits here until selected
                 labels={{
                   left: "0 — Extremely poor",
                   mid: "5 — Neither poor nor rich",
@@ -574,15 +644,23 @@ function Section({
   labels,
 }: {
   title: string;
-  value: number;
-  onChange: (v: number) => void;
+  value: number | null; // IMPORTANT CHANGE
+  onChange: (v: number | null) => void;
   rationale: string;
   setRationale: (s: string) => void;
-  defaultValue: number; // rationale required when value !== defaultValue
+  defaultValue: number; // thumb sits here until selected
   labels: { left: string; mid: string; right: string };
 }) {
-  const needsWhy = value !== defaultValue;
-  const sliderColor = value === defaultValue ? "#2563eb" : "#16a34a";
+  const selected = value !== null;
+
+  // We must always provide a numeric value to <input type="range">.
+  // If unselected, we render the thumb at defaultValue but keep the display blank + thumb hollow.
+  const visualValue = selected ? value : defaultValue;
+
+  const needsWhy = selected && value !== defaultValue;
+
+  // slider color logic
+  const sliderColor = !selected ? "#9ca3af" : value === defaultValue ? "#2563eb" : "#16a34a";
 
   return (
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
@@ -594,12 +672,21 @@ function Section({
           min={0}
           max={10}
           step={1}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ width: "100%", accentColor: sliderColor }}
+          value={visualValue}
+          onChange={(e) => onChange(Number(e.target.value))} // selecting any value marks it as "selected"
+          className={`hollow-range ${selected ? "selected" : ""}`}
+          style={
+            {
+              width: "100%",
+              // CSS variable consumed by thumb styling above
+              ["--thumb-color" as any]: sliderColor,
+            } as React.CSSProperties
+          }
         />
+
+        {/* IMPORTANT CHANGE: show blank until selected */}
         <div style={{ width: 28, textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#111" }}>
-          {value}
+          {selected ? value : ""}
         </div>
       </div>
 
@@ -625,7 +712,7 @@ function Section({
 
       <div style={{ marginTop: 12 }}>
         <textarea
-          placeholder="Please provide a brief rationale"
+          placeholder={selected ? "Please provide a brief rationale" : "Select a score first"}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={3}
@@ -638,9 +725,17 @@ function Section({
             background: "white",
             color: "#111",
           }}
+          disabled={!selected}
         />
+
         {needsWhy && rationale.trim().length === 0 && (
           <div style={{ marginTop: 6, fontSize: 12, color: "#16a34a" }}>Required.</div>
+        )}
+
+        {!selected && (
+          <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+            Please move the slider to choose a score.
+          </div>
         )}
       </div>
     </div>
