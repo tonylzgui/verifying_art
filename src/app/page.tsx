@@ -558,6 +558,32 @@ export default function Page() {
           outline-offset: 3px;
           border-radius: 6px;
         }
+
+        /* ---------- MOBILE FIXES ---------- */
+        @media (max-width: 720px) {
+          /* Stack the two slider cards */
+          .sections-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          /* Let label row wrap instead of overlapping */
+          .slider-labels {
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+
+          /* Make each label take the full width on mobile */
+          .slider-label {
+            width: 100% !important;
+            text-align: left !important;
+          }
+
+          /* Slightly tighten label button spacing + allow wrapping */
+          .slider-label-btn {
+            padding: 4px 0;
+            white-space: normal;
+          }
+        }
       `}</style>
 
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -576,11 +602,19 @@ export default function Page() {
               <img
                 src={publicUrl(currentPhoto.storage_path)}
                 alt=""
-                style={{ width: "100%", height: 520, objectFit: "contain", background: "#fff" }}
+                style={{
+                  width: "100%",
+                  height: "min(520px, 55vh)",
+                  objectFit: "contain",
+                  background: "#fff",
+                }}
               />
             </div>
 
-            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <div
+              className="sections-grid"
+              style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
+            >
               <Section
                 title="Relevant score"
                 value={relevance}
@@ -721,6 +755,7 @@ function Section({
         <div />
 
         <div
+          className="slider-labels"
           style={{
             display: "flex",
             justifyContent: "space-between",
@@ -728,24 +763,23 @@ function Section({
             fontSize: 12,
             color: "#333",
             opacity: 0.85,
-            height: 64,
             lineHeight: "16px",
             alignItems: "flex-start",
           }}
         >
-          <div style={{ width: "33%", textAlign: "left" }}>
+          <div className="slider-label slider-label-left" style={{ width: "33%", textAlign: "left" }}>
             <button type="button" className="slider-label-btn" onClick={() => onChange(0)}>
               {labels.left}
             </button>
           </div>
 
-          <div style={{ width: "34%", textAlign: "center" }}>
+          <div className="slider-label slider-label-mid" style={{ width: "34%", textAlign: "center" }}>
             <button type="button" className="slider-label-btn" onClick={() => onChange(5)}>
               {labels.mid}
             </button>
           </div>
 
-          <div style={{ width: "33%", textAlign: "right" }}>
+          <div className="slider-label slider-label-right" style={{ width: "33%", textAlign: "right" }}>
             <button type="button" className="slider-label-btn" onClick={() => onChange(10)}>
               {labels.right}
             </button>
