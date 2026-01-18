@@ -480,13 +480,13 @@ export default function Page() {
 
   return (
     <main style={styles.page}>
-      {/* global slider styling + clickable label styling */}
+      {/* Slider CSS */}
       <style jsx global>{`
         .hollow-range {
           -webkit-appearance: none;
           appearance: none;
           width: 100%;
-          height: 6px; /* IMPORTANT: don't overlap the labels */
+          height: 6px;
           display: block;
           background: transparent;
           outline: none;
@@ -510,16 +510,16 @@ export default function Page() {
           height: 18px;
           border-radius: 999px;
           border: 2px solid #9ca3af;
-          background: white; /* blocks the track behind it */
+          background: white;
           cursor: pointer;
-          margin-top: -6px; /* center on 6px track */
+          margin-top: -6px;
         }
         .hollow-range::-moz-range-thumb {
           width: 18px;
           height: 18px;
           border-radius: 999px;
           border: 2px solid #9ca3af;
-          background: white; /* blocks the track behind it */
+          background: white;
           cursor: pointer;
         }
 
@@ -545,7 +545,6 @@ export default function Page() {
           display: block;
           width: 100%;
         }
-
         .slider-label-btn:focus-visible {
           outline: 2px solid #111;
           outline-offset: 3px;
@@ -675,9 +674,19 @@ function Section({
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {/* Wrapper provides a larger drag area without overlapping labels */}
-        <div style={{ flex: 1, padding: "8px 0" }}>
+      {/* SLIDER ROW (explicit zIndex layer) */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 18, // IMPORTANT: creates real space so slider can't overlap labels
+        }}
+      >
+        {/* Big drag target ABOVE labels, but does not overlap due to marginBottom */}
+        <div style={{ flex: 1, padding: "10px 0" }}>
           <input
             type="range"
             min={0}
@@ -700,20 +709,22 @@ function Section({
         </div>
       </div>
 
+      {/* LABEL ROW (higher zIndex layer) */}
       <div
         style={{
           position: "relative",
-          zIndex: 2,
+          zIndex: 10, // ensure labels win even if any overlap exists
           display: "flex",
           justifyContent: "space-between",
           gap: 10,
-          marginTop: 8,
+          marginTop: -8, // brings labels closer visually WITHOUT allowing overlap clicks
           fontSize: 12,
           color: "#333",
           opacity: 0.85,
           height: 64,
           lineHeight: "16px",
           alignItems: "flex-start",
+          pointerEvents: "auto",
         }}
       >
         <div style={{ width: "33%", textAlign: "left" }}>
