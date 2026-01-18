@@ -492,6 +492,7 @@ export default function Page() {
           outline: none;
         }
 
+        /* Default track (unselected): all grey */
         .hollow-range::-webkit-slider-runnable-track {
           height: 6px;
           border-radius: 999px;
@@ -501,6 +502,26 @@ export default function Page() {
           height: 6px;
           border-radius: 999px;
           background: #d1d5db;
+        }
+
+        /* Selected: gradient fill up to thumb */
+        .hollow-range.selected::-webkit-slider-runnable-track {
+          background: linear-gradient(
+            to right,
+            var(--fill, #2563eb) 0%,
+            var(--fill, #2563eb) var(--pct, 0%),
+            #d1d5db var(--pct, 0%),
+            #d1d5db 100%
+          );
+        }
+        .hollow-range.selected::-moz-range-track {
+          background: linear-gradient(
+            to right,
+            var(--fill, #2563eb) 0%,
+            var(--fill, #2563eb) var(--pct, 0%),
+            #d1d5db var(--pct, 0%),
+            #d1d5db 100%
+          );
         }
 
         .hollow-range::-webkit-slider-thumb {
@@ -670,7 +691,10 @@ function Section({
   const needsWhy = selected && value !== defaultValue;
   const sliderColor = !selected ? "#9ca3af" : value === defaultValue ? "#2563eb" : "#16a34a";
 
-  // NEW: if unselected, clicking the thumb/track should "select" the default value immediately
+  // NEW: fill percent for gradient track (0..10 -> 0..100%)
+  const pct = `${(visualValue / 10) * 100}%`;
+
+  // Clicking thumb/track while unselected should select default
   const ensureSelected = () => {
     if (value === null) onChange(defaultValue);
   };
@@ -679,7 +703,6 @@ function Section({
     <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, background: "white" }}>
       <div style={{ fontSize: 18, fontWeight: 650, marginBottom: 10, color: "#111" }}>{title}</div>
 
-      {/* Slider row */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <input
           type="range"
@@ -688,7 +711,6 @@ function Section({
           step={1}
           value={visualValue}
           onChange={(e) => onChange(Number(e.target.value))}
-          // NEW: dot (thumb) click now counts as selecting, even if value doesn't change
           onPointerDown={ensureSelected}
           onMouseDown={ensureSelected}
           onTouchStart={ensureSelected}
@@ -699,6 +721,8 @@ function Section({
           style={
             {
               ["--thumb-color" as any]: sliderColor,
+              ["--fill" as any]: sliderColor,
+              ["--pct" as any]: pct,
             } as React.CSSProperties
           }
         />
@@ -708,10 +732,8 @@ function Section({
         </div>
       </div>
 
-      {/* Spacer so label clicks are safe */}
       <div style={{ height: 22 }} />
 
-      {/* Labels row (text click already works) */}
       <div
         style={{
           display: "flex",
