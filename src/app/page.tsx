@@ -791,7 +791,6 @@ function Section({
 
       <div style={{ marginTop: 12 }}>
         <textarea
-          placeholder={selected ? "Please provide a brief rationale" : "Select a score first"}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={3}
